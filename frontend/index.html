@@ -4,152 +4,146 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VoiceAst - Voice Assistant</title>
+    <title>PRIME - AI Voice Assistant</title>
     <link rel="stylesheet" href="style.css">
-    <!-- Preconnect for faster font loading -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <!-- Async font loading to prevent blocking -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"
-        media="print" onload="this.media='all'">
-    <noscript>
-        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
-            rel="stylesheet">
-    </noscript>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700&family=Rajdhani:wght@400;500;600;700&display=swap"
+        rel="stylesheet">
 </head>
 
 <body>
-    <div class="app-container">
+    <!-- Corner Decorations -->
+    <div class="corner-decoration top-left"></div>
+    <div class="corner-decoration top-right"></div>
+    <div class="corner-decoration bottom-left"></div>
+    <div class="corner-decoration bottom-right"></div>
+
+    <!-- Data Stream Effect -->
+    <div class="data-stream"></div>
+
+    <div class="container">
         <!-- Header -->
-        <header class="header">
-            <div class="header-content">
-                <div class="logo">
-                    <div class="logo-icon">🎤</div>
-                    <h1>Prime</h1>
+        <header>
+            <div class="logo">
+                <div class="logo-icon">🤖</div>
+                <div>
+                    <h1>PRIME</h1>
+                    <p>AI Voice Control System</p>
                 </div>
-                <div class="status-indicator">
-                    <span class="status-dot" id="statusDot"></span>
-                    <span class="status-text" id="statusText">Connecting...</span>
-                </div>
+            </div>
+            <div class="status-indicator" id="statusIndicator">
+                <span id="statusText">INITIALIZING...</span>
             </div>
         </header>
 
         <!-- Main Content -->
-        <main class="main-content">
-            <!-- Voice Control Panel -->
-            <div class="voice-panel">
+        <div class="main-content">
+            <!-- Voice Interface Section -->
+            <section class="voice-section">
+                <!-- Rotating Ring -->
+                <div class="orb-ring"></div>
+
+                <!-- Main Voice Orb -->
+                <div class="voice-orb" id="micButton" onclick="assistant.toggleListening()">
+                    <span class="mic-icon">🎤</span>
+                </div>
+
+                <!-- Voice Visualizer -->
                 <div class="voice-visualizer" id="voiceVisualizer">
-                    <div class="visualizer-ring ring-1"></div>
-                    <div class="visualizer-ring ring-2"></div>
-                    <div class="visualizer-ring ring-3"></div>
-                    <button class="mic-button" id="micButton">
-                        <!-- Microphone Icon (shown when listening) -->
-                        <svg class="mic-icon" id="micIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                            stroke-width="2">
-                            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
-                            <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
-                            <line x1="12" y1="19" x2="12" y2="23"></line>
-                            <line x1="8" y1="23" x2="16" y2="23"></line>
-                        </svg>
-                        <!-- Speaker Icon (shown when Prime is speaking) -->
-                        <svg class="speaker-icon" id="speakerIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                            stroke-width="2" style="display: none;">
-                            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
-                            <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
-                        </svg>
-                    </button>
-                </div>
-
-                <div class="voice-status">
-                    <h2 id="voiceStatusText">Click microphone to start</h2>
-                    <p class="voice-subtitle" id="voiceSubtitle">Say a command like "open notepad" or "what time is it"
-                    </p>
-                </div>
-
-                <!-- Transcription Display -->
-                <div class="transcription-box" id="transcriptionBox">
-                    <div class="transcription-label">You said:</div>
-                    <div class="transcription-text" id="transcriptionText">...</div>
+                    <div class="visualizer-bar"></div>
+                    <div class="visualizer-bar"></div>
+                    <div class="visualizer-bar"></div>
+                    <div class="visualizer-bar"></div>
+                    <div class="visualizer-bar"></div>
+                    <div class="visualizer-bar"></div>
+                    <div class="visualizer-bar"></div>
+                    <div class="visualizer-bar"></div>
+                    <div class="visualizer-bar"></div>
+                    <div class="visualizer-bar"></div>
                 </div>
 
                 <!-- Response Display -->
-                <div class="response-box" id="responseBox">
-                    <div class="response-label">Assistant:</div>
-                    <div class="response-text" id="responseText">...</div>
-                    <div class="response-status" id="responseStatus"></div>
+                <div class="response-display">
+                    <div class="transcription" id="transcription"></div>
+                    <div class="response-text" id="responseText">
+                        Click the orb to activate voice control
+                    </div>
                 </div>
-            </div>
+            </section>
 
-            <!-- Sidebar -->
-            <aside class="sidebar">
+            <!-- Side Panel -->
+            <aside class="side-panel">
                 <!-- Quick Actions -->
-                <div class="card">
-                    <h3 class="card-title">Quick Actions</h3>
+                <div class="hud-panel" data-label="QCK-ACT">
+                    <div class="panel-title">Quick Actions</div>
                     <div class="quick-actions">
-                        <button class="quick-action-btn" onclick="sendCommand('what time is it')">
-                            🕐 Time
+                        <button class="action-btn" onclick="sendCommand('open notepad')">
+                            <span class="icon">📝</span>
+                            <span>Notepad</span>
                         </button>
-                        <button class="quick-action-btn" onclick="sendCommand('take screenshot')">
-                            📸 Screenshot
+                        <button class="action-btn" onclick="sendCommand('open chrome')">
+                            <span class="icon">🌐</span>
+                            <span>Browser</span>
                         </button>
-                        <button class="quick-action-btn" onclick="sendCommand('open notepad')">
-                            📝 Notepad
+                        <button class="action-btn" onclick="sendCommand('take a screenshot')">
+                            <span class="icon">📸</span>
+                            <span>Screenshot</span>
                         </button>
-                        <button class="quick-action-btn" onclick="sendCommand('system information')">
-                            💻 System Info
+                        <button class="action-btn" onclick="sendCommand('what time is it')">
+                            <span class="icon">⏰</span>
+                            <span>Time</span>
                         </button>
+                        <button class="action-btn" onclick="sendCommand('volume up')">
+                            <span class="icon">🔊</span>
+                            <span>Vol Up</span>
+                        </button>
+                        <button class="action-btn" onclick="sendCommand('volume down')">
+                            <span class="icon">🔉</span>
+                            <span>Vol Down</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- System Stats -->
+                <div class="hud-panel" data-label="SYS-STAT">
+                    <div class="panel-title">System Status</div>
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <div class="stat-value" id="statTotal">0</div>
+                            <div class="stat-label">Commands</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value" id="statSuccess">0%</div>
+                            <div class="stat-label">Success</div>
+                        </div>
                     </div>
                 </div>
 
                 <!-- Command History -->
-                <div class="card">
-                    <div class="card-header">
-                        <h3 class="card-title">Command History</h3>
-                        <button class="clear-btn" onclick="clearHistory()">Clear</button>
-                    </div>
+                <div class="hud-panel" data-label="CMD-LOG">
+                    <div class="panel-title">Command Log</div>
                     <div class="history-list" id="historyList">
-                        <div class="empty-state">No commands yet</div>
-                    </div>
-                </div>
-
-                <!-- Statistics -->
-                <div class="card stats-card">
-                    <h3 class="card-title">Statistics</h3>
-                    <div class="stats-grid">
-                        <div class="stat-item">
-                            <div class="stat-value" id="statTotal">0</div>
-                            <div class="stat-label">Total Commands</div>
-                        </div>
-                        <div class="stat-item">
-                            <div class="stat-value" id="statSuccess">0%</div>
-                            <div class="stat-label">Success Rate</div>
+                        <div class="history-item">
+                            <span class="history-command">System initialized</span>
+                            <span class="history-time">--:--</span>
                         </div>
                     </div>
                 </div>
             </aside>
-        </main>
+        </div>
+    </div>
 
-        <!-- Settings Modal -->
-        <div class="modal" id="settingsModal">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h2>Settings</h2>
-                    <button class="close-btn" onclick="closeSettings()">×</button>
-                </div>
-                <div class="modal-body">
-                    <div class="setting-item">
-                        <label>Voice Recognition</label>
-                        <select id="recognitionModel">
-                            <option value="vosk">Vosk (Offline)</option>
-                        </select>
-                    </div>
-                    <div class="setting-item">
-                        <label>Text-to-Speech</label>
-                        <select id="ttsVoice">
-                            <option value="default">Default Voice</option>
-                        </select>
-                    </div>
-                </div>
+    <!-- Settings Modal -->
+    <div class="modal" id="settingsModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span class="modal-title">⚙️ Settings</span>
+                <button class="close-btn" onclick="closeSettings()">×</button>
+            </div>
+            <div class="modal-body">
+                <p>Settings panel coming soon...</p>
             </div>
         </div>
     </div>
