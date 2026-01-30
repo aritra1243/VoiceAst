@@ -95,13 +95,23 @@ async def shutdown_event():
 
 # ==================== REST API Endpoints ====================
 
+# Frontend directory
+frontend_dir = Path(__file__).parent.parent / "frontend"
+
 @app.get("/")
-async def root():
-    """Serve frontend"""
-    frontend_path = Path(__file__).parent.parent / "frontend" / "index.html"
-    if frontend_path.exists():
-        return FileResponse(frontend_path)
-    return {"message": "VoiceAst API - Open frontend/index.html in your browser"}
+async def serve_index():
+    """Serve frontend index.html"""
+    return FileResponse(frontend_dir / "index.html")
+
+@app.get("/style.css")
+async def serve_css():
+    """Serve CSS file"""
+    return FileResponse(frontend_dir / "style.css", media_type="text/css")
+
+@app.get("/app.js")
+async def serve_js():
+    """Serve JavaScript file"""
+    return FileResponse(frontend_dir / "app.js", media_type="application/javascript")
 
 @app.get("/api/health")
 async def health_check():

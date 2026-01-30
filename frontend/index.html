@@ -5,24 +5,552 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PRIME - AI Voice Assistant</title>
-    <link rel="stylesheet" href="style.css">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link
-        href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700&family=Rajdhani:wght@400;500;600;700&display=swap"
-        rel="stylesheet">
+    <style>
+        /* ============================================
+           PRIME VOICE ASSISTANT - SCI-FI HUD THEME
+           ============================================ */
+
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700&family=Rajdhani:wght@400;500;600;700&display=swap');
+
+        :root {
+            --primary-cyan: #00f7ff;
+            --primary-blue: #0080ff;
+            --dark-bg: #0a0e17;
+            --panel-bg: rgba(0, 20, 40, 0.9);
+            --border-glow: rgba(0, 247, 255, 0.3);
+            --text-primary: #e0f7ff;
+            --text-secondary: #80c4d4;
+            --success: #00ff88;
+            --warning: #ffaa00;
+            --danger: #ff3366;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Rajdhani', 'Orbitron', sans-serif;
+            background: linear-gradient(135deg, #0a0e17 0%, #0d1525 50%, #0a1628 100%);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* Animated Grid Background */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background:
+                linear-gradient(90deg, rgba(0, 247, 255, 0.03) 1px, transparent 1px),
+                linear-gradient(rgba(0, 247, 255, 0.03) 1px, transparent 1px);
+            background-size: 60px 60px;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* Scan Lines */
+        body::after {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0, 0, 0, 0.1) 2px, rgba(0, 0, 0, 0.1) 4px);
+            pointer-events: none;
+            z-index: 1000;
+            opacity: 0.2;
+        }
+
+        .container {
+            position: relative;
+            z-index: 1;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Header */
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 30px;
+            background: var(--panel-bg);
+            border: 1px solid var(--border-glow);
+            margin-bottom: 20px;
+            clip-path: polygon(0 0, calc(100% - 20px) 0, 100% 20px, 100% 100%, 20px 100%, 0 calc(100% - 20px));
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .logo-icon {
+            width: 50px;
+            height: 50px;
+            background: linear-gradient(135deg, var(--primary-cyan), var(--primary-blue));
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            box-shadow: 0 0 20px rgba(0, 247, 255, 0.5);
+            animation: pulse-glow 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse-glow {
+
+            0%,
+            100% {
+                box-shadow: 0 0 20px rgba(0, 247, 255, 0.5);
+            }
+
+            50% {
+                box-shadow: 0 0 40px rgba(0, 247, 255, 0.8);
+            }
+        }
+
+        .logo h1 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 28px;
+            color: var(--primary-cyan);
+            text-shadow: 0 0 20px rgba(0, 247, 255, 0.5);
+            letter-spacing: 4px;
+        }
+
+        .logo p {
+            font-size: 11px;
+            color: var(--text-secondary);
+            letter-spacing: 2px;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 20px;
+            background: rgba(0, 247, 255, 0.1);
+            border: 1px solid var(--border-glow);
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--success);
+            box-shadow: 0 0 10px var(--success);
+            animation: blink 1s infinite;
+        }
+
+        .status-dot.offline {
+            background: var(--danger);
+            box-shadow: 0 0 10px var(--danger);
+        }
+
+        .status-dot.listening {
+            background: var(--warning);
+            box-shadow: 0 0 10px var(--warning);
+            animation: pulse 0.5s infinite;
+        }
+
+        @keyframes blink {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.5;
+            }
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                transform: scale(1);
+            }
+
+            50% {
+                transform: scale(1.3);
+            }
+        }
+
+        /* Main Content */
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 350px;
+            gap: 20px;
+            flex: 1;
+        }
+
+        /* Voice Section */
+        .voice-section {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 40px;
+            background: var(--panel-bg);
+            border: 1px solid var(--border-glow);
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Rotating Rings */
+        .ring {
+            position: absolute;
+            border-radius: 50%;
+            border: 2px dashed rgba(0, 247, 255, 0.2);
+        }
+
+        .ring-1 {
+            width: 400px;
+            height: 400px;
+            animation: rotate 30s linear infinite;
+        }
+
+        .ring-2 {
+            width: 320px;
+            height: 320px;
+            animation: rotate 20s linear infinite reverse;
+        }
+
+        @keyframes rotate {
+            from {
+                transform: rotate(0deg);
+            }
+
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* Voice Orb */
+        .voice-orb {
+            position: relative;
+            width: 220px;
+            height: 220px;
+            border-radius: 50%;
+            background: radial-gradient(circle at 30% 30%, rgba(0, 247, 255, 0.2), transparent 50%),
+                radial-gradient(circle, #050810, transparent 70%);
+            border: 3px solid var(--primary-cyan);
+            box-shadow: 0 0 30px rgba(0, 247, 255, 0.5), inset 0 0 50px rgba(0, 247, 255, 0.1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            z-index: 10;
+        }
+
+        .voice-orb:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 50px rgba(0, 247, 255, 0.8);
+        }
+
+        .voice-orb.listening {
+            border-color: var(--warning);
+            box-shadow: 0 0 50px rgba(255, 170, 0, 0.8);
+            animation: orb-pulse 1s ease-in-out infinite;
+        }
+
+        @keyframes orb-pulse {
+
+            0%,
+            100% {
+                transform: scale(1);
+            }
+
+            50% {
+                transform: scale(1.05);
+            }
+        }
+
+        .mic-icon {
+            font-size: 60px;
+        }
+
+        /* Control Buttons */
+        .control-buttons {
+            display: flex;
+            gap: 15px;
+            margin-top: 30px;
+            z-index: 10;
+        }
+
+        .control-btn {
+            padding: 12px 30px;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 12px;
+            font-weight: 600;
+            letter-spacing: 2px;
+            border: 2px solid;
+            background: transparent;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+        }
+
+        .start-btn {
+            color: var(--success);
+            border-color: var(--success);
+        }
+
+        .start-btn:hover {
+            background: var(--success);
+            color: #000;
+            box-shadow: 0 0 20px var(--success);
+        }
+
+        .stop-btn {
+            color: var(--danger);
+            border-color: var(--danger);
+        }
+
+        .stop-btn:hover {
+            background: var(--danger);
+            color: #fff;
+            box-shadow: 0 0 20px var(--danger);
+        }
+
+        /* Visualizer */
+        .visualizer {
+            display: flex;
+            gap: 4px;
+            height: 50px;
+            align-items: flex-end;
+            margin-top: 30px;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .visualizer.active {
+            opacity: 1;
+        }
+
+        .bar {
+            width: 4px;
+            background: linear-gradient(to top, var(--primary-cyan), var(--primary-blue));
+            border-radius: 2px;
+            animation: wave 0.5s ease-in-out infinite;
+        }
+
+        .bar:nth-child(1) {
+            height: 20px;
+            animation-delay: 0s;
+        }
+
+        .bar:nth-child(2) {
+            height: 35px;
+            animation-delay: 0.1s;
+        }
+
+        .bar:nth-child(3) {
+            height: 25px;
+            animation-delay: 0.2s;
+        }
+
+        .bar:nth-child(4) {
+            height: 45px;
+            animation-delay: 0.15s;
+        }
+
+        .bar:nth-child(5) {
+            height: 30px;
+            animation-delay: 0.3s;
+        }
+
+        .bar:nth-child(6) {
+            height: 40px;
+            animation-delay: 0.25s;
+        }
+
+        .bar:nth-child(7) {
+            height: 35px;
+            animation-delay: 0.1s;
+        }
+
+        .bar:nth-child(8) {
+            height: 28px;
+            animation-delay: 0.2s;
+        }
+
+        @keyframes wave {
+
+            0%,
+            100% {
+                transform: scaleY(0.5);
+            }
+
+            50% {
+                transform: scaleY(1.5);
+            }
+        }
+
+        /* Response Display */
+        .response-display {
+            margin-top: 40px;
+            text-align: center;
+            max-width: 500px;
+            z-index: 10;
+        }
+
+        .transcription {
+            font-size: 14px;
+            color: var(--text-secondary);
+            margin-bottom: 10px;
+            font-style: italic;
+        }
+
+        .response-text {
+            font-size: 20px;
+            color: var(--primary-cyan);
+            text-shadow: 0 0 10px rgba(0, 247, 255, 0.5);
+            line-height: 1.5;
+        }
+
+        /* Side Panel */
+        .side-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .hud-panel {
+            background: var(--panel-bg);
+            border: 1px solid var(--border-glow);
+            padding: 20px;
+        }
+
+        .panel-title {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 12px;
+            color: var(--primary-cyan);
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--border-glow);
+            letter-spacing: 2px;
+        }
+
+        /* Quick Actions */
+        .quick-actions {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+        }
+
+        .action-btn {
+            padding: 12px;
+            background: rgba(0, 247, 255, 0.05);
+            border: 1px solid rgba(0, 247, 255, 0.2);
+            color: var(--text-primary);
+            cursor: pointer;
+            transition: all 0.3s;
+            font-family: inherit;
+            font-size: 11px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .action-btn:hover {
+            background: rgba(0, 247, 255, 0.15);
+            border-color: var(--primary-cyan);
+            box-shadow: 0 0 15px rgba(0, 247, 255, 0.4);
+        }
+
+        .action-btn .icon {
+            font-size: 20px;
+        }
+
+        /* Stats */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+        }
+
+        .stat-item {
+            text-align: center;
+            padding: 15px;
+            background: rgba(0, 247, 255, 0.05);
+        }
+
+        .stat-value {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 24px;
+            color: var(--primary-cyan);
+            text-shadow: 0 0 10px rgba(0, 247, 255, 0.5);
+        }
+
+        .stat-label {
+            font-size: 10px;
+            color: var(--text-secondary);
+            margin-top: 5px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        /* History */
+        .history-list {
+            max-height: 180px;
+            overflow-y: auto;
+        }
+
+        .history-item {
+            padding: 10px;
+            margin-bottom: 8px;
+            background: rgba(0, 247, 255, 0.03);
+            border-left: 2px solid var(--primary-cyan);
+            font-size: 12px;
+        }
+
+        /* Responsive */
+        @media (max-width: 900px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+
+            .side-panel {
+                display: grid;
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 600px) {
+            .side-panel {
+                grid-template-columns: 1fr;
+            }
+
+            .voice-orb {
+                width: 160px;
+                height: 160px;
+            }
+
+            .mic-icon {
+                font-size: 40px;
+            }
+        }
+    </style>
 </head>
 
 <body>
-    <!-- Corner Decorations -->
-    <div class="corner-decoration top-left"></div>
-    <div class="corner-decoration top-right"></div>
-    <div class="corner-decoration bottom-left"></div>
-    <div class="corner-decoration bottom-right"></div>
-
-    <!-- Data Stream Effect -->
-    <div class="data-stream"></div>
-
     <div class="container">
         <!-- Header -->
         <header>
@@ -33,42 +561,46 @@
                     <p>AI Voice Control System</p>
                 </div>
             </div>
-            <div class="status-indicator" id="statusIndicator">
-                <span id="statusText">INITIALIZING...</span>
+            <div class="status-indicator">
+                <div class="status-dot" id="statusDot"></div>
+                <span id="statusText">Initializing...</span>
             </div>
         </header>
 
         <!-- Main Content -->
         <div class="main-content">
-            <!-- Voice Interface Section -->
+            <!-- Voice Section -->
             <section class="voice-section">
-                <!-- Rotating Ring -->
-                <div class="orb-ring"></div>
+                <div class="ring ring-1"></div>
+                <div class="ring ring-2"></div>
 
-                <!-- Main Voice Orb -->
-                <div class="voice-orb" id="micButton" onclick="assistant.toggleListening()">
+                <div class="voice-orb" id="voiceOrb">
                     <span class="mic-icon">🎤</span>
                 </div>
 
-                <!-- Voice Visualizer -->
-                <div class="voice-visualizer" id="voiceVisualizer">
-                    <div class="visualizer-bar"></div>
-                    <div class="visualizer-bar"></div>
-                    <div class="visualizer-bar"></div>
-                    <div class="visualizer-bar"></div>
-                    <div class="visualizer-bar"></div>
-                    <div class="visualizer-bar"></div>
-                    <div class="visualizer-bar"></div>
-                    <div class="visualizer-bar"></div>
-                    <div class="visualizer-bar"></div>
-                    <div class="visualizer-bar"></div>
+                <!-- Control Buttons -->
+                <div class="control-buttons">
+                    <button class="control-btn start-btn" id="startBtn">▶ Start</button>
+                    <button class="control-btn stop-btn" id="stopBtn">■ Stop</button>
+                </div>
+
+                <!-- Visualizer -->
+                <div class="visualizer" id="visualizer">
+                    <div class="bar"></div>
+                    <div class="bar"></div>
+                    <div class="bar"></div>
+                    <div class="bar"></div>
+                    <div class="bar"></div>
+                    <div class="bar"></div>
+                    <div class="bar"></div>
+                    <div class="bar"></div>
                 </div>
 
                 <!-- Response Display -->
                 <div class="response-display">
                     <div class="transcription" id="transcription"></div>
                     <div class="response-text" id="responseText">
-                        Click the orb to activate voice control
+                        Say "Hey Prime" to start
                     </div>
                 </div>
             </section>
@@ -76,8 +608,8 @@
             <!-- Side Panel -->
             <aside class="side-panel">
                 <!-- Quick Actions -->
-                <div class="hud-panel" data-label="QCK-ACT">
-                    <div class="panel-title">Quick Actions</div>
+                <div class="hud-panel">
+                    <div class="panel-title">⚡ Quick Actions</div>
                     <div class="quick-actions">
                         <button class="action-btn" onclick="sendCommand('open notepad')">
                             <span class="icon">📝</span>
@@ -87,7 +619,7 @@
                             <span class="icon">🌐</span>
                             <span>Browser</span>
                         </button>
-                        <button class="action-btn" onclick="sendCommand('take a screenshot')">
+                        <button class="action-btn" onclick="sendCommand('take screenshot')">
                             <span class="icon">📸</span>
                             <span>Screenshot</span>
                         </button>
@@ -95,20 +627,12 @@
                             <span class="icon">⏰</span>
                             <span>Time</span>
                         </button>
-                        <button class="action-btn" onclick="sendCommand('volume up')">
-                            <span class="icon">🔊</span>
-                            <span>Vol Up</span>
-                        </button>
-                        <button class="action-btn" onclick="sendCommand('volume down')">
-                            <span class="icon">🔉</span>
-                            <span>Vol Down</span>
-                        </button>
                     </div>
                 </div>
 
-                <!-- System Stats -->
-                <div class="hud-panel" data-label="SYS-STAT">
-                    <div class="panel-title">System Status</div>
+                <!-- Stats -->
+                <div class="hud-panel">
+                    <div class="panel-title">📊 System Stats</div>
                     <div class="stats-grid">
                         <div class="stat-item">
                             <div class="stat-value" id="statTotal">0</div>
@@ -121,30 +645,14 @@
                     </div>
                 </div>
 
-                <!-- Command History -->
-                <div class="hud-panel" data-label="CMD-LOG">
-                    <div class="panel-title">Command Log</div>
+                <!-- History -->
+                <div class="hud-panel">
+                    <div class="panel-title">📜 Command Log</div>
                     <div class="history-list" id="historyList">
-                        <div class="history-item">
-                            <span class="history-command">System initialized</span>
-                            <span class="history-time">--:--</span>
-                        </div>
+                        <div class="history-item">System initialized</div>
                     </div>
                 </div>
             </aside>
-        </div>
-    </div>
-
-    <!-- Settings Modal -->
-    <div class="modal" id="settingsModal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <span class="modal-title">⚙️ Settings</span>
-                <button class="close-btn" onclick="closeSettings()">×</button>
-            </div>
-            <div class="modal-body">
-                <p>Settings panel coming soon...</p>
-            </div>
         </div>
     </div>
 
