@@ -19,9 +19,16 @@ from text_to_speech import tts
 from intent_recognizer import intent_recognizer
 from device_controller import device_controller
 from flexible_nlp import FlexibleIntentRecognizer
+from ai_brain import ai_brain
 
-# Initialize flexible NLP
+# Initialize flexible NLP (fallback)
 flexible_nlp = FlexibleIntentRecognizer()
+
+# Log AI status
+if config.AI_ENABLED and ai_brain.is_available:
+    print(f"✓ AI Brain enabled with model: {config.OLLAMA_MODEL}")
+else:
+    print("⚠ AI Brain disabled or unavailable - using pattern matching")
 
 # Create FastAPI app
 app = FastAPI(
@@ -207,10 +214,9 @@ async def websocket_endpoint(websocket: WebSocket):
                 await manager.send_message({"type": "pong"}, websocket)
             
             elif message_type == "voice_command":
-                # ... (existing voice command logic) ...
-                # Process voice command
+                # Process voice command using AI Brain
                 command_text = message.get("text", "")
-                language = message.get("language", "en")  # Default to English
+                language = message.get("language", "en")
                 
                 if command_text:
                     # Send acknowledgment
@@ -219,52 +225,80 @@ async def websocket_endpoint(websocket: WebSocket):
                         "command": command_text
                     }, websocket)
                     
-                    # Use FLEXIBLE NLP for intent recognition
-                    intent_result = flexible_nlp.recognize_flexible(command_text)
-                    intent = intent_result["intent"]
-                    parameters = intent_result["parameters"]
-                    confidence = intent_result["confidence"]
-                    
-                    print(f"🧠 Flexible NLP: '{command_text}' → {intent} (conf: {confidence})")
-                    
-                    # Send intent
-                    await manager.send_message({
-                        "type": "intent",
-                        "intent": intent,
-                        "parameters": parameters,
-                        "confidence": confidence
-                    }, websocket)
-                    
-                    # Execute command with language context
-                    result = await process_intent(intent, parameters, language)
+                    # Use AI Brain for understanding (or fallback to pattern matching)
+                    if config.AI_ENABLED and ai_brain.is_available:
+                        print(f"🤖 AI processing: '{command_text}'")
+                        ai_result = await ai_brain.think(command_text)
+                        
+                        response_text = ai_result.get('response', '')
+                        action = ai_result.get('action')
+                        params = ai_result.get('params', {})
+                        language = ai_result.get('language', 'en')
+                        
+                        print(f"🧠 AI: Action={action}, Params={params}")
+                        
+                        # Send intent
+                        await manager.send_message({
+                            "type": "intent",
+                            "intent": action or "conversation",
+                            "parameters": params,
+                            "confidence": 0.95 if action else 0.8
+                        }, websocket)
+                        
+                        # Execute action if available
+                        action_result = {"success": True, "message": response_text}
+                        if action:
+                            action_result = await process_intent(action, params, language)
+                            # If action has a specific message, append or use it
+                            if action_result.get("message") and action != "time" and action != "date":
+                                # Keep AI's natural response for most actions
+                                pass
+                            else:
+                                # Use action result message for time/date
+                                response_text = action_result.get("message", response_text)
+                    else:
+                        # Fallback to pattern matching
+                        intent_result = flexible_nlp.recognize_flexible(command_text)
+                        intent = intent_result["intent"]
+                        parameters = intent_result["parameters"]
+                        confidence = intent_result["confidence"]
+                        
+                        print(f"🧠 Pattern: '{command_text}' → {intent}")
+                        
+                        await manager.send_message({
+                            "type": "intent",
+                            "intent": intent,
+                            "parameters": parameters,
+                            "confidence": confidence
+                        }, websocket)
+                        
+                        action_result = await process_intent(intent, parameters, language)
+                        response_text = action_result.get("message", "")
                     
                     # Generate TTS audio (male voice, base64)
-                    response_text = result.get("message", "")
                     audio_base64 = ""
-                    
                     if response_text:
-                        print(f"🗣️ Generating male voice audio...")
-                        # Run TTS in a separate thread to avoid blocking the asyncio loop!
+                        print(f"🗣️ TTS: '{response_text}'")
                         audio_base64 = await asyncio.to_thread(tts.text_to_audio_base64, response_text, language)
-                        print(f"✓ Audio generated: {len(audio_base64)} bytes")
+                        print(f"✓ Audio: {len(audio_base64)} chars")
                     
                     # Send result WITH audio
                     await manager.send_message({
                         "type": "result",
-                        "success": result.get("success", False),
+                        "success": action_result.get("success", True),
                         "message": response_text,
-                        "audio": audio_base64,  # Base64 encoded WAV
+                        "audio": audio_base64,
                         "language": language,
-                        "data": result
+                        "data": {"command": command_text}
                     }, websocket)
                     
                     # Save to database
                     await db.save_command(
                         command=command_text,
-                        intent=intent,
+                        intent=action or "conversation",
                         response=response_text,
-                        success=result.get("success", False),
-                        metadata=result
+                        success=action_result.get("success", True),
+                        metadata={}
                     )
             
             elif message_type == "audio_stream":
@@ -412,51 +446,73 @@ async def websocket_endpoint(websocket: WebSocket):
                                 "isFinal": True
                             }, websocket)
                             
-                            # Use flexible NLP for intent
-                            intent_result = flexible_nlp.recognize_flexible(text)
-                            intent = intent_result["intent"]
-                            parameters = intent_result["parameters"]
-                            confidence = intent_result["confidence"]
-                            
-                            print(f"🧠 Intent: {intent} | Params: {parameters}")
-                            
-                            # Send intent
-                            await manager.send_message({
-                                "type": "intent",
-                                "intent": intent,
-                                "parameters": parameters,
-                                "confidence": confidence
-                            }, websocket)
-                            
-                            # Execute command
-                            result = await process_intent(intent, parameters, "en")
+                            # Use AI Brain for understanding
+                            if config.AI_ENABLED and ai_brain.is_available:
+                                print(f"🤖 AI processing: '{text}'")
+                                ai_result = await ai_brain.think(text)
+                                
+                                response_text = ai_result.get('response', '')
+                                action = ai_result.get('action')
+                                params = ai_result.get('params', {})
+                                language = ai_result.get('language', 'en')
+                                
+                                print(f"🧠 AI: Action={action}, Params={params}")
+                                
+                                # Send intent
+                                await manager.send_message({
+                                    "type": "intent",
+                                    "intent": action or "conversation",
+                                    "parameters": params,
+                                    "confidence": 0.95 if action else 0.8
+                                }, websocket)
+                                
+                                # Execute action if available
+                                action_result = {"success": True, "message": response_text}
+                                if action:
+                                    action_result = await process_intent(action, params, language)
+                                    if action in ("time", "date"):
+                                        response_text = action_result.get("message", response_text)
+                            else:
+                                # Fallback to pattern matching
+                                intent_result = flexible_nlp.recognize_flexible(text)
+                                action = intent_result["intent"]
+                                params = intent_result["parameters"]
+                                
+                                await manager.send_message({
+                                    "type": "intent",
+                                    "intent": action,
+                                    "parameters": params,
+                                    "confidence": intent_result["confidence"]
+                                }, websocket)
+                                
+                                action_result = await process_intent(action, params, "en")
+                                response_text = action_result.get("message", "")
+                                language = "en"
                             
                             # Generate TTS audio
-                            response_text = result.get("message", "")
                             audio_base64 = ""
-                            
                             if response_text:
-                                print(f"🗣️ Generating TTS for: '{response_text}'")
-                                audio_base64 = await asyncio.to_thread(tts.text_to_audio_base64, response_text, "en")
-                                print(f"✓ Audio generated: {len(audio_base64)} chars")
+                                print(f"🗣️ TTS: '{response_text}'")
+                                audio_base64 = await asyncio.to_thread(tts.text_to_audio_base64, response_text, language)
+                                print(f"✓ Audio: {len(audio_base64)} chars")
                             
                             # Send result WITH audio
                             await manager.send_message({
                                 "type": "result",
-                                "success": result.get("success", False),
+                                "success": action_result.get("success", True),
                                 "message": response_text,
                                 "audio": audio_base64,
-                                "language": "en",
-                                "data": {"command": text, **result}
+                                "language": language,
+                                "data": {"command": text}
                             }, websocket)
                             
                             # Save to database
                             await db.save_command(
                                 command=text,
-                                intent=intent,
+                                intent=action or "conversation",
                                 response=response_text,
-                                success=result.get("success", False),
-                                metadata=result
+                                success=action_result.get("success", True),
+                                metadata={}
                             )
                         else:
                             # No speech detected

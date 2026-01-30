@@ -29,6 +29,11 @@ VOSK_MODEL_PATH = BASE_DIR / os.getenv(
 TTS_RATE = int(os.getenv("TTS_RATE", 150))
 TTS_VOLUME = float(os.getenv("TTS_VOLUME", 0.9))
 
+# AI Settings (Ollama)
+AI_ENABLED = os.getenv("AI_ENABLED", "true").lower() == "true"
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2")
+OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
+
 # Security Settings
 ENABLE_DANGEROUS_COMMANDS = os.getenv("ENABLE_DANGEROUS_COMMANDS", "false").lower() == "true"
 
