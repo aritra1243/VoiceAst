@@ -41,14 +41,14 @@ class PrimeAssistant {
     }
 
     setupEventListeners() {
-        // Voice Orb click
+        // Voice Orb click - activates conversation with greeting
         if (this.ui.voiceOrb) {
-            this.ui.voiceOrb.addEventListener('click', () => this.toggleListening());
+            this.ui.voiceOrb.addEventListener('click', () => this.activateConversation());
         }
 
-        // Start button
+        // Start button - activates conversation with greeting
         if (this.ui.startBtn) {
-            this.ui.startBtn.addEventListener('click', () => this.startListening());
+            this.ui.startBtn.addEventListener('click', () => this.activateConversation());
         }
 
         // Stop button
@@ -108,18 +108,17 @@ class PrimeAssistant {
                 this.showResponse(data.message, data.success);
                 this.addToHistory(data.message, data.success);
 
-                // Play audio response
+                // Play audio response, then continue conversation
                 if (data.audio) {
-                    this.playAudio(data.audio);
-                }
-
-                // Continue conversation if active
-                if (this.conversationActive) {
-                    setTimeout(() => {
+                    this.playAudio(data.audio, () => {
+                        // After audio finishes, start listening if conversation is active
                         if (this.conversationActive) {
-                            this.startListening();
+                            setTimeout(() => this.startListening(), 500);
                         }
-                    }, 1500);
+                    });
+                } else if (this.conversationActive) {
+                    // No audio, start listening after delay
+                    setTimeout(() => this.startListening(), 1000);
                 }
 
                 this.loadStatistics();
@@ -138,19 +137,17 @@ class PrimeAssistant {
     }
 
     activateConversation() {
-        console.log('🎯 Wake word detected! Starting conversation...');
+        console.log('🎯 Activating Prime with greeting...');
         this.conversationActive = true;
-        this.stopListening();
 
-        // Send greeting command
+        // Send greeting request to backend (male voice greeting)
         this.sendToServer({
-            type: 'voice_command',
-            text: 'greet me',
-            language: 'en'
+            type: 'greeting'
         });
 
         // Update UI
-        this.showResponse('Hello! How can I help you?', true);
+        this.showResponse('Activating Prime...', true);
+        this.updateStatus('online', 'Prime Active');
     }
 
     async startListening() {
@@ -371,14 +368,24 @@ class PrimeAssistant {
         }
     }
 
-    playAudio(base64Audio) {
-        if (!base64Audio) return;
+    playAudio(base64Audio, onEnded) {
+        if (!base64Audio) {
+            if (onEnded) onEnded();
+            return;
+        }
 
         const audio = new Audio(`data:audio/wav;base64,${base64Audio}`);
         audio.onended = () => {
             audio.remove();
+            if (onEnded) onEnded();
         };
-        audio.play().catch(console.error);
+        audio.onerror = () => {
+            if (onEnded) onEnded();
+        };
+        audio.play().catch((err) => {
+            console.error('Audio play error:', err);
+            if (onEnded) onEnded();
+        });
     }
 
     updateStatus(state, text) {

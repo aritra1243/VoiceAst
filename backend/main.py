@@ -223,6 +223,29 @@ async def websocket_endpoint(websocket: WebSocket):
                 await manager.send_message({"type": "pong"}, websocket)
                 await manager.send_message({"type": "pong"}, websocket)
             
+            elif message_type == "greeting":
+                # User said "Hey Prime" or clicked Start - greet them
+                print("👋 Greeting activated!")
+                greetings = [
+                    "Hello! I'm Prime, your voice assistant. How can I help you today?",
+                    "Hi there! Prime at your service. What would you like me to do?",
+                    "Hey! I'm listening. What can I do for you?",
+                    "Hello! Prime here. Ready to assist you.",
+                ]
+                import random
+                greeting_text = random.choice(greetings)
+                
+                # Generate audio with male voice
+                audio_base64 = tts.speak(greeting_text, voice_type="male")
+                
+                await manager.send_message({
+                    "type": "result",
+                    "success": True,
+                    "message": greeting_text,
+                    "audio": audio_base64,
+                    "is_greeting": True
+                }, websocket)
+            
             elif message_type == "voice_command":
                 # Process voice command using AI Brain
                 command_text = message.get("text", "")
