@@ -38,24 +38,38 @@ class TextToSpeech:
             print(f"✗ TTS initialization error: {e}")
             self.engine = None
     
-    def speak(self, text: str, async_mode: bool = True):
+    def speak(self, text: str, voice_type: str = "male", return_audio: bool = True) -> str:
         """
-        Convert text to speech
+        Convert text to speech and return as base64 audio
         
         Args:
             text: Text to speak
-            async_mode: If True, speak asynchronously (non-blocking)
+            voice_type: 'male' or 'female' voice
+            return_audio: If True, return base64 audio string
+        
+        Returns:
+            Base64 encoded audio data (or empty string if return_audio is False)
         """
         if not self.engine:
             print(f"TTS not available. Would say: {text}")
-            return
+            return ""
         
-        if async_mode:
-            self.speech_queue.put(text)
-            if not self.is_running:
-                self._start_worker()
+        # Set voice based on type
+        voices = self.engine.getProperty('voices')
+        if voices:
+            if voice_type == "female" and len(voices) > 1:
+                self.engine.setProperty('voice', voices[1].id)
+            else:
+                self.engine.setProperty('voice', voices[0].id)
+        
+        # Use faster rate for responsiveness
+        self.engine.setProperty('rate', 180)
+        
+        if return_audio:
+            return self.text_to_audio_base64(text)
         else:
             self._speak_sync(text)
+            return ""
     
     def _speak_sync(self, text: str):
         """Speak synchronously (blocking)"""

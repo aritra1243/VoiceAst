@@ -184,13 +184,16 @@ ALWAYS respond with valid JSON only. No extra text before or after the JSON.
                 {"role": "user", "content": f"Current time: {current_time}, Date: {current_date}\n\nUser says: {user_input}"}
             ]
             
-            # Call Ollama
+            # Call Ollama with optimized settings for speed
             response = ollama.chat(
                 model=self.model_name,
                 messages=messages,
                 options={
-                    "temperature": 0.7,
-                    "num_predict": 150,  # Keep responses short
+                    "temperature": 0.8,
+                    "num_predict": 60,  # Very short responses for speed
+                    "num_ctx": 512,     # Smaller context window
+                    "top_k": 20,        # Faster sampling
+                    "top_p": 0.9,
                 }
             )
             

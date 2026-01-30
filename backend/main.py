@@ -224,13 +224,15 @@ async def websocket_endpoint(websocket: WebSocket):
                 await manager.send_message({"type": "pong"}, websocket)
             
             elif message_type == "greeting":
-                # User said "Hey Prime" or clicked Start - greet them
+                # User said "Hey Prime" or clicked Start - greet them fast!
                 print("👋 Greeting activated!")
+                
+                # Short greetings for faster TTS
                 greetings = [
-                    "Hello! I'm Prime, your voice assistant. How can I help you today?",
-                    "Hi there! Prime at your service. What would you like me to do?",
-                    "Hey! I'm listening. What can I do for you?",
-                    "Hello! Prime here. Ready to assist you.",
+                    "Hello! How can I help?",
+                    "Hi! What can I do for you?",
+                    "Hey! I'm listening.",
+                    "Yes? How can I help?",
                 ]
                 import random
                 greeting_text = random.choice(greetings)
