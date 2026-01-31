@@ -15,6 +15,10 @@ except ImportError:
     OLLAMA_AVAILABLE = False
     print("⚠ Ollama not installed. Run: pip install ollama")
 
+import asyncio
+import functools
+
+
 
 class AIBrain:
     """
@@ -197,15 +201,16 @@ IMPORTANT: Return ONLY the JSON object. No markdown, no extra text, no explanati
                 {"role": "user", "content": f"Current time: {current_time}, Date: {current_date}\n\nUser says: {user_input}"}
             ]
             
-            # Call Ollama with JSON format mode for consistent action detection
-            response = ollama.chat(
+            # Call Ollama asynchronously to avoid blocking the event loop
+            response = await asyncio.to_thread(
+                ollama.chat,
                 model=self.model_name,
                 messages=messages,
                 format="json",  # Force JSON output
                 options={
-                    "temperature": 0.3,      # Lower temp for more consistent action detection
-                    "num_predict": 150,      # Enough tokens for full JSON response
-                    "num_ctx": 1024,         # Larger context to understand full prompt
+                    "temperature": 0.4,      # Slightly higher for better flow
+                    "num_predict": 100,      # Faster generation (shorter response is fine)
+                    "num_ctx": 768,          # Smaller context window for speed
                     "top_k": 20,
                     "top_p": 0.9,
                 }

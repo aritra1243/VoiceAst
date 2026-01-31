@@ -376,6 +376,12 @@ async def websocket_endpoint(websocket: WebSocket):
                         success=action_result.get("success", True),
                         metadata={}
                     )
+                    
+                    # Signal that we are ready for the next command
+                    await manager.send_message({
+                        "type": "ready",
+                        "message": "Ready for next command"
+                    }, websocket)
             
             elif message_type == "audio_stream":
                 # Process streaming audio with Vosk (Stateful)
@@ -459,6 +465,12 @@ async def websocket_endpoint(websocket: WebSocket):
                                     success=result.get("success", False),
                                     metadata=result
                                 )
+                                
+                                # Signal that we are ready for the next command
+                                await manager.send_message({
+                                    "type": "ready",
+                                    "message": "Ready for next command"
+                                }, websocket)
             
             elif message_type == "voice_audio_file":
                 # NEW: Handle complete WAV file from frontend
@@ -474,8 +486,8 @@ async def websocket_endpoint(websocket: WebSocket):
                         # Strip WAV header (44 bytes) to get raw PCM
                         pcm_data = audio_bytes[44:] if len(audio_bytes) > 44 else audio_bytes
                         
-                        # Recognize with Vosk
-                        recognition_result = voice_recognition.recognize_from_audio(pcm_data)
+                        # Recognize with Vosk (Async to avoid blocking)
+                        recognition_result = await asyncio.to_thread(voice_recognition.recognize_from_audio, pcm_data)
                         text = recognition_result.get("text", "").strip()
                         
                         print(f"🎤 Vosk recognized: '{text}'")
@@ -556,6 +568,12 @@ async def websocket_endpoint(websocket: WebSocket):
                                 success=action_result.get("success", True),
                                 metadata={}
                             )
+                            
+                            # Signal that we are ready for the next command
+                            await manager.send_message({
+                                "type": "ready",
+                                "message": "Ready for next command"
+                            }, websocket)
                         else:
                             # No speech detected
                             await manager.send_message({

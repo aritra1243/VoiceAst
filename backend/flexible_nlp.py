@@ -76,7 +76,7 @@ class FlexibleIntentRecognizer:
                         'parameters': {},
                         'original_text': original_text
                     }
-                    
+                     
                     # For open/close, find the target app
                     if action in ['open', 'close']:
                         for entity, entity_keywords in self.entity_keywords.items():
