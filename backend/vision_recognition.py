@@ -31,10 +31,19 @@ class VisionRecognition:
         
         try:
             # Check if llava model exists
-            models = ollama.list()
-            model_names = [m['name'].split(':')[0] for m in models.get('models', [])]
+            models_response = ollama.list()
             
-            if self.model_name in model_names or f"{self.model_name}:latest" in [m['name'] for m in models.get('models', [])]:
+            # Handle both old and new ollama API response formats
+            if hasattr(models_response, 'models'):
+                # New format: models_response.models is a list of model objects
+                model_names = [m.model.split(':')[0] if hasattr(m, 'model') else str(m).split(':')[0] for m in models_response.models]
+            elif isinstance(models_response, dict) and 'models' in models_response:
+                # Old format: {'models': [{'name': '...'}]}
+                model_names = [m.get('name', '').split(':')[0] for m in models_response.get('models', [])]
+            else:
+                model_names = []
+            
+            if self.model_name in model_names:
                 self.is_available = True
                 print(f"✓ Vision model '{self.model_name}' available")
             else:

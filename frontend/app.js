@@ -137,6 +137,9 @@ class PrimeAssistant {
             if (this.ui.visualizer) this.ui.visualizer.classList.add('active');
             if (this.ui.statusDot) this.ui.statusDot.classList.add('listening');
             this.updateStatus('listening', 'Listening...');
+
+            // Clear previous response text to show we are ready for next command
+            this.showResponse('Listening...', true);
         };
 
         this.recognition.onresult = (event) => {
@@ -256,6 +259,7 @@ class PrimeAssistant {
                 break;
 
             case 'result':
+                this.updateStatus('online', 'Action Completed'); // Update status immediately
                 this.showResponse(data.message, data.success);
                 this.addToHistory(data.message, data.success);
 
@@ -264,10 +268,12 @@ class PrimeAssistant {
                     this.playAudio(data.audio, () => {
                         // After audio, start listening again if successful
                         if (data.success && this.conversationActive) {
+                            this.updateStatus('listening', 'Listening...'); // Explicitly update status
                             setTimeout(() => this.startListening(), 300);
                         }
                     });
                 } else if (data.success && this.conversationActive) {
+                    this.updateStatus('listening', 'Listening...');
                     setTimeout(() => this.startListening(), 500);
                 }
 
@@ -383,6 +389,9 @@ class PrimeAssistant {
 
     sendCommand(text) {
         if (!text.trim()) return;
+
+        // Clear previous response immediately to show new command is being processed
+        this.showResponse('Processing: "' + text + '"...', true);
 
         // Detect language (Hindi or English)
         const isHindi = /[\u0900-\u097F]/.test(text);
