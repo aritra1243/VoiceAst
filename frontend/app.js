@@ -11,6 +11,11 @@ class PrimeAssistant {
         this.recognition = null;
         this.conversationActive = false;
 
+        // Camera/Vision
+        this.cameraStream = null;
+        this.isAnalyzing = false;
+        this.analyzeInterval = null;
+
         // DOM Elements
         this.ui = {
             voiceOrb: document.getElementById('voiceOrb'),
@@ -278,6 +283,54 @@ class PrimeAssistant {
                 this.showResponse(data.message, false);
                 this.conversationActive = false;
                 break;
+
+            case 'vision_result':
+                // Handle vision analysis result
+                const statusEl = document.getElementById('cameraStatus');
+                if (data.success) {
+                    if (statusEl) statusEl.textContent = data.description;
+
+                    // Play audio description, then start listening again
+                    if (data.audio) {
+                        this.playAudio(data.audio, () => {
+                            // After speaking, resume listening if camera is open
+                            if (this.cameraStream) {
+                                const s = document.getElementById('cameraStatus');
+                                if (s) s.textContent = '🎤 Ask me anything about what you see...';
+                                setTimeout(() => this.startListening(), 500);
+                            }
+                        });
+                    }
+                } else {
+                    if (statusEl) statusEl.textContent = 'Analysis failed: ' + data.description;
+                }
+                this.isAnalyzing = false;
+                break;
+        }
+
+        // Handle camera actions from result
+        if (data.type === 'result') {
+            const action = data.data?.action || data.action;
+            if (action === 'open_camera') {
+                this.openCamera();
+            } else if (action === 'close_camera') {
+                this.closeCamera();
+            }
+
+            // If camera is open and this was a vision response, continue listening
+            if (this.cameraStream && data.data?.vision) {
+                const s = document.getElementById('cameraStatus');
+                if (s) s.textContent = '🎤 Ask me anything...';
+
+                // Play audio then resume listening
+                if (data.audio) {
+                    this.playAudio(data.audio, () => {
+                        setTimeout(() => this.startListening(), 500);
+                    });
+                } else {
+                    setTimeout(() => this.startListening(), 500);
+                }
+            }
         }
     }
 
@@ -334,10 +387,29 @@ class PrimeAssistant {
         // Detect language (Hindi or English)
         const isHindi = /[\u0900-\u097F]/.test(text);
 
+        // If camera is open, capture current frame and send with the question
+        let imageBase64 = null;
+        if (this.cameraStream) {
+            const video = document.getElementById('cameraVideo');
+            const canvas = document.getElementById('cameraCanvas');
+
+            if (video && canvas) {
+                canvas.width = video.videoWidth || 640;
+                canvas.height = video.videoHeight || 480;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(video, 0, 0);
+                imageBase64 = canvas.toDataURL('image/jpeg', 0.8).split(',')[1];
+
+                const statusEl = document.getElementById('cameraStatus');
+                if (statusEl) statusEl.textContent = '👁️ Analyzing: ' + text;
+            }
+        }
+
         this.sendToServer({
             type: 'voice_command',
             text: text,
-            language: isHindi ? 'hi' : 'en'
+            language: isHindi ? 'hi' : 'en',
+            image: imageBase64  // Include frame if camera is open
         });
 
         this.updateStatus('online', 'Processing...');
@@ -367,6 +439,107 @@ class PrimeAssistant {
             console.error('Audio play error:', err);
             if (onEnded) onEnded();
         });
+    }
+
+    // === Camera / Vision Methods ===
+
+    async openCamera() {
+        console.log('📷 Opening camera...');
+        const overlay = document.getElementById('cameraOverlay');
+        const video = document.getElementById('cameraVideo');
+        const closeBtn = document.getElementById('closeCameraBtn');
+        const statusEl = document.getElementById('cameraStatus');
+
+        if (!overlay || !video) {
+            console.error('Camera elements not found');
+            return;
+        }
+
+        try {
+            // Get camera stream
+            this.cameraStream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: 'environment', width: 640, height: 480 }
+            });
+
+            video.srcObject = this.cameraStream;
+            overlay.style.display = 'flex';
+
+            // Setup close button
+            if (closeBtn) {
+                closeBtn.onclick = () => this.closeCamera();
+            }
+
+            // Tell user camera is ready for questions
+            if (statusEl) statusEl.textContent = '📷 Camera ready! Ask me what you see...';
+
+            // Do initial scene description after 1 second
+            setTimeout(() => this.captureAndAnalyze(), 1000);
+
+            // Keep conversation active and listening
+            this.conversationActive = true;
+
+            // Start listening for voice commands
+            setTimeout(() => {
+                if (this.recognition && !this.isListening) {
+                    this.startListening();
+                }
+            }, 3000);
+
+        } catch (error) {
+            console.error('Camera access error:', error);
+            this.showResponse('Could not access camera: ' + error.message, false);
+        }
+    }
+
+    closeCamera() {
+        console.log('📷 Closing camera...');
+        const overlay = document.getElementById('cameraOverlay');
+        const video = document.getElementById('cameraVideo');
+
+        // Stop analysis interval
+        if (this.analyzeInterval) {
+            clearInterval(this.analyzeInterval);
+            this.analyzeInterval = null;
+        }
+
+        // Stop camera stream
+        if (this.cameraStream) {
+            this.cameraStream.getTracks().forEach(track => track.stop());
+            this.cameraStream = null;
+        }
+
+        if (video) video.srcObject = null;
+        if (overlay) overlay.style.display = 'none';
+
+        this.isAnalyzing = false;
+    }
+
+    captureAndAnalyze() {
+        const video = document.getElementById('cameraVideo');
+        const canvas = document.getElementById('cameraCanvas');
+        const statusEl = document.getElementById('cameraStatus');
+
+        if (!video || !canvas || !this.cameraStream) return;
+
+        this.isAnalyzing = true;
+        if (statusEl) statusEl.textContent = '👁️ Analyzing...';
+
+        // Capture frame
+        canvas.width = video.videoWidth || 640;
+        canvas.height = video.videoHeight || 480;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(video, 0, 0);
+
+        // Convert to base64 JPEG
+        const imageBase64 = canvas.toDataURL('image/jpeg', 0.8).split(',')[1];
+
+        // Send to backend for analysis
+        this.sendToServer({
+            type: 'analyze_frame',
+            image: imageBase64
+        });
+
+        console.log('📤 Sent frame for analysis');
     }
 
     updateStatus(state, text) {

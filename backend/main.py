@@ -20,6 +20,7 @@ from intent_recognizer import intent_recognizer
 from device_controller import device_controller
 from flexible_nlp import FlexibleIntentRecognizer
 from ai_brain import ai_brain
+from vision_recognition import vision
 
 # Initialize flexible NLP (fallback)
 flexible_nlp = FlexibleIntentRecognizer()
@@ -251,6 +252,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 # Process voice command using AI Brain
                 command_text = message.get("text", "")
                 language = message.get("language", "en")
+                image_base64 = message.get("image")  # Camera frame if available
                 
                 if command_text:
                     # Send acknowledgment
@@ -259,7 +261,47 @@ async def websocket_endpoint(websocket: WebSocket):
                         "command": command_text
                     }, websocket)
                     
-                    # Use AI Brain for understanding (or fallback to pattern matching)
+                    # If image is provided, use vision model for the response
+                    if image_base64 and vision.is_available:
+                        print(f"👁️ Vision Q&A: '{command_text}'")
+                        
+                        # Create a prompt that combines the question with image analysis
+                        vision_prompt = f"The user is asking: '{command_text}'. Look at the image and answer their question in 1-2 short sentences. Be conversational and natural."
+                        
+                        vision_result = await vision.analyze_image(image_base64, vision_prompt)
+                        
+                        if vision_result["success"]:
+                            response_text = vision_result["description"]
+                            print(f"👁️ Vision response: {response_text}")
+                            
+                            # Generate TTS audio
+                            audio_base64 = await asyncio.to_thread(
+                                tts.text_to_audio_base64, 
+                                response_text, 
+                                language
+                            )
+                            
+                            # Send result
+                            await manager.send_message({
+                                "type": "result",
+                                "success": True,
+                                "message": response_text,
+                                "audio": audio_base64,
+                                "language": language,
+                                "data": {"command": command_text, "vision": True}
+                            }, websocket)
+                            
+                            # Save to database
+                            await db.save_command(
+                                command=command_text,
+                                intent="vision_qa",
+                                response=response_text,
+                                success=True,
+                                metadata={"vision": True}
+                            )
+                            continue  # Skip normal processing
+                    
+                    # Normal AI Brain processing (no camera or vision not available)
                     if config.AI_ENABLED and ai_brain.is_available:
                         print(f"🤖 AI processing: '{command_text}'")
                         ai_result = await ai_brain.think(command_text)
@@ -548,6 +590,41 @@ async def websocket_endpoint(websocket: WebSocket):
                             "text": recognition_result["text"],
                             "confidence": recognition_result.get("confidence", 0)
                         }, websocket)
+            
+            elif message_type == "analyze_frame":
+                # Vision recognition - analyze camera frame
+                image_base64 = message.get("image", "")
+                
+                if image_base64:
+                    print("📷 Analyzing camera frame...")
+                    
+                    # Analyze with LLaVA vision model
+                    result = await vision.analyze_image(image_base64)
+                    
+                    if result["success"]:
+                        description = result["description"]
+                        print(f"👁️ Vision: {description}")
+                        
+                        # Generate TTS for the description
+                        audio_base64 = await asyncio.to_thread(
+                            tts.text_to_audio_base64, 
+                            description, 
+                            "en"
+                        )
+                        
+                        await manager.send_message({
+                            "type": "vision_result",
+                            "success": True,
+                            "description": description,
+                            "audio": audio_base64
+                        }, websocket)
+                    else:
+                        await manager.send_message({
+                            "type": "vision_result",
+                            "success": False,
+                            "description": result.get("error", "Vision analysis failed"),
+                            "audio": ""
+                        }, websocket)
     
     except WebSocketDisconnect:
         manager.disconnect(websocket)
@@ -699,6 +776,21 @@ async def process_intent(intent: str, parameters: dict, language: str = "en") ->
         elif intent == "press_key":
             key = parameters.get("key", "")
             return device_controller.press_key(key)
+        
+        # Camera / Vision
+        elif intent in ("open_camera", "camera"):
+            return {
+                "success": True,
+                "message": "Opening camera. I'll describe what I see.",
+                "action": "open_camera"
+            }
+        
+        elif intent == "close_camera":
+            return {
+                "success": True,
+                "message": "Camera closed.",
+                "action": "close_camera"
+            }
         
         # Help & Greeting
         elif intent == "greeting":

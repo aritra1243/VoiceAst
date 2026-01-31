@@ -47,6 +47,8 @@ AVAILABLE COMMANDS YOU CAN EXECUTE:
 - web_search: Search the web
 - shutdown/restart: System power (ask for confirmation)
 - system_info: Get system information
+- open_camera: Open webcam to see and describe what's visible
+- close_camera: Close the webcam
 
 RESPONSE FORMAT:
 For EVERY response, you MUST return a JSON object with this exact structure:
