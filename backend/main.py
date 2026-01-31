@@ -221,7 +221,6 @@ async def websocket_endpoint(websocket: WebSocket):
             
             if message_type == "ping":
                 await manager.send_message({"type": "pong"}, websocket)
-                await manager.send_message({"type": "pong"}, websocket)
             
             elif message_type == "greeting":
                 # User said "Hey Prime" or clicked Start - greet them fast!
@@ -418,40 +417,6 @@ async def websocket_endpoint(websocket: WebSocket):
                                     success=result.get("success", False),
                                     metadata=result
                                 )
-                            
-                            # Detect language
-                            language = 'hi' if any('\u0900' <= c <= '\u097F' for c in text) else 'en'
-                            
-                            # Execute command
-                            result = await process_intent(intent, parameters, language)
-                            
-                            # Generate TTS audio
-                            response_text = result.get("message", "")
-                            audio_base64 = ""
-                            
-                            if response_text:
-                                print(f"🗣️ Generating male voice audio...")
-                                audio_base64 = tts.text_to_audio_base64(response_text, language)
-                                print(f"✓ Audio generated: {len(audio_base64)} bytes")
-                            
-                            # Send result WITH audio
-                            await manager.send_message({
-                                "type": "result",
-                                "success": result.get("success", False),
-                                "message": response_text,
-                                "audio": audio_base64,
-                                "language": language,
-                                "data": result
-                            }, websocket)
-                            
-                            # Save to database
-                            await db.save_command(
-                                command=text,
-                                intent=intent,
-                                response=response_text,
-                                success=result.get("success", False),
-                                metadata=result
-                            )
             
             elif message_type == "voice_audio_file":
                 # NEW: Handle complete WAV file from frontend
@@ -673,7 +638,7 @@ async def process_intent(intent: str, parameters: dict, language: str = "en") ->
                 result["message"] = "चमक घटाई जा रही है"
             return result
         
-        elif intent == "screenshot":
+        elif intent in ("screenshot", "take_screenshot"):
             result = device_controller.take_screenshot()
             if language == "hi" and result.get("success"):
                 result["message"] = "स्क्रीनशॉट लिया गया"
@@ -778,24 +743,7 @@ async def process_intent(intent: str, parameters: dict, language: str = "en") ->
         }
 
 # ==================== Static Files ====================
-
-# Serve static files (CSS, JS) from frontend directory
-frontend_dir = Path(__file__).parent.parent / "frontend"
-if frontend_dir.exists():
-    # Individual file routes for CSS and JS
-    @app.get("/style.css")
-    async def get_css():
-        css_path = frontend_dir / "style.css"
-        if css_path.exists():
-            return FileResponse(css_path, media_type="text/css")
-        raise HTTPException(status_code=404, detail="CSS file not found")
-    
-    @app.get("/app.js")
-    async def get_js():
-        js_path = frontend_dir / "app.js"
-        if js_path.exists():
-            return FileResponse(js_path, media_type="application/javascript")
-        raise HTTPException(status_code=404, detail="JS file not found")
+# Note: Static file routes are defined earlier in the file (lines 106-114)
 
 # ==================== Main ====================
 
