@@ -754,6 +754,6 @@ if __name__ == "__main__":
         "main:app",
         host=config.HOST,
         port=config.PORT,
-        reload=True,
+        reload=False,  # Disabled to prevent WebSocket disconnections
         log_level="info"
     )

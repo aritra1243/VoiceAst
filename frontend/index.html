@@ -166,6 +166,63 @@
             animation: pulse 0.5s infinite;
         }
 
+        /* Clock and Weather Widget */
+        .clock-weather-widget {
+            display: flex;
+            gap: 30px;
+            align-items: center;
+        }
+
+        .clock-display {
+            text-align: center;
+            padding: 10px 20px;
+            background: rgba(0, 247, 255, 0.05);
+            border: 1px solid var(--border-glow);
+        }
+
+        .time-display {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 32px;
+            color: var(--primary-cyan);
+            text-shadow: 0 0 20px rgba(0, 247, 255, 0.5);
+            letter-spacing: 3px;
+        }
+
+        .date-display {
+            font-size: 11px;
+            color: var(--text-secondary);
+            letter-spacing: 1px;
+            margin-top: 3px;
+        }
+
+        .weather-display {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 15px;
+            background: rgba(0, 247, 255, 0.05);
+            border: 1px solid var(--border-glow);
+        }
+
+        .weather-icon {
+            font-size: 24px;
+        }
+
+        .weather-temp {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 22px;
+            color: var(--success);
+            text-shadow: 0 0 10px rgba(0, 255, 136, 0.5);
+        }
+
+        .weather-city {
+            font-size: 11px;
+            color: var(--text-secondary);
+            max-width: 80px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
         @keyframes blink {
 
             0%,
@@ -586,6 +643,20 @@
                     <p>AI Voice Control System</p>
                 </div>
             </div>
+
+            <!-- Clock and Weather Widget -->
+            <div class="clock-weather-widget">
+                <div class="clock-display">
+                    <div class="time-display" id="timeDisplay">00:00:00</div>
+                    <div class="date-display" id="dateDisplay">Loading...</div>
+                </div>
+                <div class="weather-display" id="weatherDisplay">
+                    <span class="weather-icon">🌡️</span>
+                    <span class="weather-temp" id="weatherTemp">--°C</span>
+                    <span class="weather-city" id="weatherCity">Loading...</span>
+                </div>
+            </div>
+
             <div class="status-indicator">
                 <div class="status-dot" id="statusDot"></div>
                 <span id="statusText">Initializing...</span>
