@@ -161,29 +161,46 @@ class TextToSpeech:
         import os
         import uuid
         import tempfile
-        
-        if not self.engine:
-            return ""
+        import pyttsx3
         
         try:
             # Create temp file
             temp_dir = tempfile.gettempdir()
             filename = os.path.join(temp_dir, f"prime_tts_{uuid.uuid4()}.wav")
             
-            # Generate audio file
-            self.save_to_file(text, filename)
+            # Initialize a NEW local engine instance for this thread
+            # verify thread safety and avoid blocking the main global engine
+            local_engine = pyttsx3.init()
+            local_engine.setProperty('rate', config.TTS_RATE)
+            local_engine.setProperty('volume', config.TTS_VOLUME)
+            
+            # Set voice (simple logic for now)
+            voices = local_engine.getProperty('voices')
+            if voices:
+                local_engine.setProperty('voice', voices[0].id)
+            
+            # Save to file
+            local_engine.save_to_file(text, filename)
+            local_engine.runAndWait()
+            
+            # Clean up engine (if needed, mainly implicitly handled)
+            del local_engine
             
             # Read and encode
-            with open(filename, 'rb') as f:
-                audio_data = base64.b64encode(f.read()).decode('utf-8')
-            
-            # Clean up
-            try:
-                os.remove(filename)
-            except:
-                pass
-            
-            return audio_data
+            if os.path.exists(filename):
+                with open(filename, 'rb') as f:
+                    audio_data = base64.b64encode(f.read()).decode('utf-8')
+                
+                # Clean up file
+                try:
+                    os.remove(filename)
+                except:
+                    pass
+                
+                return audio_data
+            else:
+                print("⚠ TTS: Audio file not created")
+                return ""
             
         except Exception as e:
             print(f"Error generating audio base64: {e}")

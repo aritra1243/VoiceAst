@@ -346,10 +346,19 @@ async def websocket_endpoint(websocket: WebSocket):
                         if not response_text:  # For time/date, use the action result message
                             response_text = action_result.get("message", "Done!")
                         
-                        # Generate TTS
+                        # Generate TTS with timeout and error handling
                         audio_base64 = ""
                         if response_text:
-                            audio_base64 = await asyncio.to_thread(tts.text_to_audio_base64, response_text, language)
+                            try:
+                                # Timed TTS generation (max 3 seconds)
+                                audio_base64 = await asyncio.wait_for(
+                                    asyncio.to_thread(tts.text_to_audio_base64, response_text, language),
+                                    timeout=3.0
+                                )
+                            except asyncio.TimeoutError:
+                                print("⚠ TTS Generation timed out - skipping audio")
+                            except Exception as e:
+                                print(f"⚠ TTS Error: {e}")
                         
                         await manager.send_message({
                             "type": "result",
