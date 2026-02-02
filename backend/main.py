@@ -144,13 +144,27 @@ async def get_weather():
     
     def fetch_weather_sync():
         city = "Delhi"
-        # 1. Get location
-        try:
-            loc_res = requests.get("https://ipapi.co/json/", timeout=3.0)
-            if loc_res.status_code == 200:
-                city = loc_res.json().get("city", "Delhi")
-        except Exception as e:
-            print(f"Location fetch error: {e}")
+        # 1. Get location (Multi-provider fallback)
+        location_providers = [
+            ("http://ip-api.com/json", "city"),  # Very reliable
+            ("https://ipapi.co/json/", "city"),
+            ("https://ipinfo.io/json", "city"),
+        ]
+        
+        for url, key in location_providers:
+            try:
+                print(f"🌍 Locating via {url}...")
+                loc_res = requests.get(url, timeout=3.0)
+                if loc_res.status_code == 200:
+                    data = loc_res.json()
+                    fetched_city = data.get(key)
+                    if fetched_city:
+                        city = fetched_city
+                        print(f"📍 Location found: {city}")
+                        break
+            except Exception as e:
+                print(f"Location provider {url} failed: {e}")
+                continue
             
         # 2. Get weather
         try:
@@ -375,6 +389,79 @@ async def websocket_endpoint(websocket: WebSocket):
                             await db.save_command(command=command_text, intent="memory_store", response=response_text, success=True)
                             continue # Skip further processing
                     
+                    # 3. Visual Memory Triggers (Face Rec)
+                    # "This is [Name]" -> Train
+                    face_train_match = re.search(r'this is\s+(.+)', command_lower)
+                    if face_train_match and image_base64:
+                        from face_memory import face_memory
+                        name = face_train_match.group(1).strip()
+                        print(f"📸 Learning face: {name}")
+                        
+                        success = face_memory.train_face(image_base64, name)
+                        msg = f"I've learned that this is {name}." if success else "I couldn't see a face clearly. Please try again."
+                        
+                        # TTS
+                        t_audio = await asyncio.to_thread(tts.text_to_audio_base64, msg, language)
+                        
+                        await manager.send_message({
+                            "type": "result", 
+                            "success": success, 
+                            "message": msg,
+                            "audio": t_audio, # Fixed variable name
+                            "data": {"intent": "face_train"}
+                        }, websocket)
+                        continue
+
+                    # "Who is this" -> Recognize
+                    if "who is this" in command_lower or "who is that" in command_lower:
+                        if image_base64:
+                            from face_memory import face_memory
+                            print("📸 Recognizing face...")
+                            
+                            who = face_memory.recognize_face(image_base64)
+                            msg = f"That looks like {who}."
+                            
+                            t_audio = await asyncio.to_thread(tts.text_to_audio_base64, msg, language)
+                            
+                            await manager.send_message({
+                                "type": "result", 
+                                "success": True, 
+                                "message": msg,
+                                "audio": t_audio, # Fixed variable name
+                                "data": {"intent": "face_rec"}
+                            }, websocket)
+                            continue
+                        else:
+                            msg = "I can't see anyone. Please enable the camera."
+                            t_audio = await asyncio.to_thread(tts.text_to_audio_base64, msg, language)
+                            await manager.send_message({
+                                "type": "result", "success": False, "message": msg, "audio": t_audio
+                            }, websocket)
+                            continue
+
+                    # 4. Universal Messaging (Send X to Y on Z)
+                    # Pattern: "send message to [Person] on [App] saying [Message]"
+                    msg_match = re.search(r'send\s+(?:message|sms|text)\s+to\s+(.+?)\s+on\s+(.+?)\s+(?:saying|that)\s+(.+)', command_lower)
+                    if msg_match:
+                        person = msg_match.group(1).strip()
+                        app_name = msg_match.group(2).strip()
+                        msg_body = msg_match.group(3).strip()
+                        
+                        resp_txt = f"Sending message to {person} on {app_name}."
+                        
+                        # Acknowledge first (because the action takes time)
+                        t_audio = await asyncio.to_thread(tts.text_to_audio_base64, resp_txt, language)
+                        await manager.send_message({
+                            "type": "result", "success": True, "message": resp_txt, "audio": t_audio,
+                            "data": {"intent": "messaging"}
+                        }, websocket)
+                        
+                        # Execute in background (don't block server)
+                        asyncio.create_task(asyncio.to_thread(device_controller.send_message, app_name, person, msg_body))
+                        
+                        await db.save_command(command=command_text, intent="send_message", response=resp_txt, success=True)
+                        continue
+
                     # FAST PATH: Quick pattern matching for common commands (skip AI for speed)
                     fast_patterns = {
                         'screenshot': ('take_screenshot', {}, "Screenshot captured!"),

@@ -71,11 +71,16 @@ Open your browser to **http://localhost:8000**
 
 ## Supported Functions
 
-### 🧠 Long-term Memory (NEW)
-- **Teach**: "Remember that my meeting is at 5 PM"
-- **Recall**: "When is my meeting?"
-- **Teach**: "Note that wifi password is 1234"
-- **Recall**: "What is the wifi password?"
+### 🧠 Long-term Memory
+- **Text**: "Remember that my meet is at 5 PM" / "When is my meet?"
+- **Visual (Face Rec)**: 
+    - Teach: "This is John" (Show face to camera)
+    - Ask: "Who is this?" (Show face again)
+
+### 📨 Universal Messaging
+- "Send message to **John** on **WhatsApp** saying **Hello**"
+- "Send text to **Mom** on **Phone Link** saying **I'm late**"
+*(Note: Requires the app to be installed and logged in)*
 
 ### ⚡ Instant Commands (Fast Path)
 - "Volume up/down/mute"

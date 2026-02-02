@@ -450,5 +450,52 @@ class DeviceController:
                 "error": str(e)
             }
 
+    # ==================== Universal Messaging ====================
+    
+    def send_message(self, app_name: str, person: str, message: str) -> Dict:
+        """
+        Universal Robotic Messaging
+        1. Open App
+        2. Search Person (Ctrl+F)
+        3. Type Message
+        """
+        try:
+            # 1. Open App
+            self.open_application(app_name)
+            
+            # Wait for app to open (blind wait)
+            import time
+            time.sleep(4.0) 
+            
+            # 2. Search for person
+            # Most apps use Ctrl+F or Ctrl+K or just focus. Ctrl+F is safest bet.
+            pyautogui.hotkey('ctrl', 'f')
+            time.sleep(0.5)
+            
+            pyautogui.write(person, interval=0.05)
+            time.sleep(1.0)
+            
+            # Select person (Enter)
+            pyautogui.press('enter')
+            time.sleep(1.0)
+            
+            # 3. Type message
+            pyautogui.write(message, interval=0.05)
+            time.sleep(0.5)
+            pyautogui.press('enter')
+            
+            return {
+                "success": True, 
+                "message": f"Sent message to {person} on {app_name}",
+                "person": person
+            }
+            
+        except Exception as e:
+            return {
+                "success": False,
+                "message": f"Failed to send message: {str(e)}",
+                "error": str(e)
+            }
+
 # Global device controller instance
 device_controller = DeviceController()

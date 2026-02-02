@@ -94,7 +94,7 @@ class TextToSpeech:
         Returns base64 encoded WAV.
         """
         # Use a timeout for the process
-        PROCESS_TIMEOUT = 5.0
+        PROCESS_TIMEOUT = 10.0
         
         try:
             temp_dir = tempfile.gettempdir()
