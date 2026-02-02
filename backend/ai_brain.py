@@ -132,12 +132,13 @@ Return ONLY JSON. Keep response under 10 words."""
             'params': {}
         }
     
-    async def think(self, user_input: str) -> Dict:
+    async def think(self, user_input: str, context_memories: list = None) -> Dict:
         """
         Process user input and generate response with optional action.
         
         Args:
             user_input: The user's voice command or question
+            context_memories: List of memory strings to inject into context
             
         Returns:
             Dict with 'response', 'action', and 'params'
@@ -153,10 +154,15 @@ Return ONLY JSON. Keep response under 10 words."""
             current_time = datetime.now().strftime("%I:%M %p")
             current_date = datetime.now().strftime("%A, %B %d, %Y")
             
+            # Format memory context
+            memory_block = ""
+            if context_memories:
+                memory_block = "USER MEMORIES (Facts you know):\n" + "\n".join([f"- {m}" for m in context_memories]) + "\n\n"
+            
             # Build messages
             messages = [
                 {"role": "system", "content": self.system_prompt},
-                {"role": "user", "content": f"Current time: {current_time}, Date: {current_date}\n\nUser says: {user_input}"}
+                {"role": "user", "content": f"Current time: {current_time}, Date: {current_date}\n\n{memory_block}User says: {user_input}"}
             ]
             
             # Call Ollama asynchronously to avoid blocking the event loop

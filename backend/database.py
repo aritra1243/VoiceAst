@@ -168,5 +168,44 @@ class Database:
             print(f"Error fetching statistics: {e}")
             return {}
 
+    async def add_memory(self, text: str):
+        """Add a memory to the database"""
+        if not self.connected:
+            return False
+        
+        try:
+            document = {
+                "text": text,
+                "timestamp": datetime.utcnow()
+            }
+            await self.db.memories.insert_one(document)
+            return True
+        except Exception as e:
+            print(f"Error adding memory: {e}")
+            return False
+
+    async def search_memories(self, query: str = "", limit: int = 5) -> List[str]:
+        """
+        Get relevant memories.
+        For now, returns the most recent memories as a simple 'context window'.
+        In future, could use vector search if needed.
+        """
+        if not self.connected:
+            return []
+        
+        try:
+            # Simple implementation: get latest memories
+            # We could add text search here if we set up indexes
+            cursor = self.db.memories.find().sort("timestamp", -1).limit(limit)
+            
+            memories = []
+            async for doc in cursor:
+                memories.append(doc["text"])
+            
+            return memories
+        except Exception as e:
+            print(f"Error fetching memories: {e}")
+            return []
+
 # Global database instance
 db = Database()

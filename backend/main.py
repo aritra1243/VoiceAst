@@ -136,6 +136,45 @@ async def clear_history():
     success = await db.clear_history()
     return {"success": success}
 
+@app.get("/api/weather")
+async def get_weather():
+    """Get weather data server-side using requests (more stable)"""
+    import requests
+    import asyncio
+    
+    def fetch_weather_sync():
+        city = "Delhi"
+        # 1. Get location
+        try:
+            loc_res = requests.get("https://ipapi.co/json/", timeout=3.0)
+            if loc_res.status_code == 200:
+                city = loc_res.json().get("city", "Delhi")
+        except Exception as e:
+            print(f"Location fetch error: {e}")
+            
+        # 2. Get weather
+        try:
+            weather_res = requests.get(f"https://wttr.in/{city}?format=j1", timeout=10.0)
+            if weather_res.status_code == 200:
+                data = weather_res.json()
+                # Inject city name if missing
+                if "nearest_area" in data and data["nearest_area"]:
+                     if not data["nearest_area"][0]["areaName"][0]["value"]:
+                         data["nearest_area"][0]["areaName"][0]["value"] = city
+                return data
+            else:
+                raise Exception(f"Weather service returned {weather_res.status_code}")
+        except Exception as e:
+            print(f"Weather fetch error: {e}")
+            raise e
+
+    try:
+        data = await asyncio.to_thread(fetch_weather_sync)
+        return data
+    except Exception as e:
+        print(f"Weather API Error: {e}")
+        return JSONResponse(content={"error": str(e)}, status_code=500)
+
 @app.get("/api/statistics")
 async def get_statistics():
     """Get usage statistics"""
@@ -301,6 +340,41 @@ async def websocket_endpoint(websocket: WebSocket):
                             )
                             continue  # Skip normal processing
                     
+                    # 2. Check for "Memory" triggers (Teaching mode)
+                    # Patterns: "remember that...", "note that...", "memorize that..."
+                    import re
+                    command_lower = command_text.lower()
+                    memory_match = re.search(r'\b(remember|note|memorize)\s+(that\s+)?(.+)', command_lower)
+                    if memory_match and not any(kw in command_lower for kw in ['open', 'close', 'search', 'play']):
+                        fact = memory_match.group(3).strip()
+                        if len(fact) > 3:
+                            # Store memory
+                            await db.add_memory(fact)
+                            
+                            response_text = "Ok Sir, I'll remember that." if language == "en" else "ठीक है सर, मैं याद रखूंगा।"
+                            
+                            # Generate TTS
+                            audio_base64 = ""
+                            try:
+                                audio_base64 = await asyncio.wait_for(
+                                    asyncio.to_thread(tts.text_to_audio_base64, response_text, language),
+                                    timeout=5.0
+                                )
+                            except:
+                                pass
+                            
+                            await manager.send_message({
+                                "type": "result",
+                                "success": True,
+                                "message": response_text,
+                                "audio": audio_base64,
+                                "language": language,
+                                "data": {"command": command_text, "intent": "memory_store"}
+                            }, websocket)
+                            
+                            await db.save_command(command=command_text, intent="memory_store", response=response_text, success=True)
+                            continue # Skip further processing
+                    
                     # FAST PATH: Quick pattern matching for common commands (skip AI for speed)
                     fast_patterns = {
                         'screenshot': ('take_screenshot', {}, "Screenshot captured!"),
@@ -350,10 +424,10 @@ async def websocket_endpoint(websocket: WebSocket):
                         audio_base64 = ""
                         if response_text:
                             try:
-                                # Timed TTS generation (max 3 seconds)
+                                # Timed TTS generation (max 8 seconds to allow process spawn overhead)
                                 audio_base64 = await asyncio.wait_for(
                                     asyncio.to_thread(tts.text_to_audio_base64, response_text, language),
-                                    timeout=3.0
+                                    timeout=8.0
                                 )
                             except asyncio.TimeoutError:
                                 print("⚠ TTS Generation timed out - skipping audio")
@@ -375,12 +449,16 @@ async def websocket_endpoint(websocket: WebSocket):
                     # Normal AI Brain processing (for complex/conversational commands)
                     if config.AI_ENABLED and ai_brain.is_available:
                         print(f"🤖 AI processing: '{command_text}'")
-                        ai_result = await ai_brain.think(command_text)
+                        # Default AI processing
+                        # Fetch relevant memories to provide context (RAG-lite)
+                        memories = await db.search_memories(limit=10)
                         
-                        response_text = ai_result.get('response', '')
-                        action = ai_result.get('action')
-                        params = ai_result.get('params', {})
-                        language = ai_result.get('language', 'en')
+                        result = await ai_brain.think(command_text, context_memories=memories)
+                        
+                        response_text = result.get("response", "")
+                        action = result.get("action")
+                        params = result.get("params", {})
+                        language = result.get("language", language)
                         
                         print(f"🧠 AI: Action={action}, Params={params}")
                         

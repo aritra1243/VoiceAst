@@ -68,49 +68,29 @@ class PrimeAssistant {
     }
 
     // Weather (using wttr.in with error handling & offline support)
+    // Weather (using backend proxy for reliability)
     async fetchWeather() {
         try {
-            let city = 'Delhi'; // Default fallback
+            // Fetch from internal backend API which handles IP/Location/Wttr
+            const res = await fetch('/api/weather');
+            if (!res.ok) throw new Error("Backend weather service unavailable");
 
-            // 1. Try browser geolocation first (more accurate)
-            const getCoords = () => new Promise((resolve, reject) => {
-                if (!navigator.geolocation) return reject();
-                navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 5000 });
-            });
+            const weatherData = await res.json();
 
-            try {
-                const pos = await getCoords();
-                const { latitude, longitude } = pos.coords;
-                // Reverse geocoding optional, but for wttr.in coords work too: "lat,lon"
-                city = `${latitude},${longitude}`;
-            } catch (e) {
-                // If blocked or unavailable, try IP lookup (with timeout)
-                try {
-                    const controller = new AbortController();
-                    const timeoutId = setTimeout(() => controller.abort(), 3000); // 3s timeout
-
-                    const geoRes = await fetch('https://ipapi.co/json/', { signal: controller.signal });
-                    const geoData = await geoRes.json();
-                    if (geoData.city) city = geoData.city;
-                    clearTimeout(timeoutId);
-                } catch (err) {
-                    console.log("Location lookup failed, utilizing default/offline mode");
-                }
+            // Validate data structure
+            if (!weatherData.current_condition || !weatherData.nearest_area) {
+                throw new Error("Invalid weather data format");
             }
-
-            // 2. Fetch weather (with timeout)
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout
-
-            const weatherRes = await fetch(`https://wttr.in/${city}?format=j1`, { signal: controller.signal });
-            const weatherData = await weatherRes.json();
-            clearTimeout(timeoutId);
 
             const current = weatherData.current_condition[0];
             const temp = current.temp_C;
             const desc = current.weatherDesc[0].value;
-            // Get city name from areaName if we used coords
-            const locationName = weatherData.nearest_area[0].areaName[0].value || city;
+
+            // Get city name safely
+            let locationName = "Unknown";
+            if (weatherData.nearest_area[0].areaName && weatherData.nearest_area[0].areaName[0]) {
+                locationName = weatherData.nearest_area[0].areaName[0].value;
+            }
 
             // Weather icon based on condition
             const icon = this.getWeatherIcon(desc);
@@ -121,7 +101,7 @@ class PrimeAssistant {
             setTimeout(() => this.fetchWeather(), 30 * 60 * 1000);
 
         } catch (error) {
-            console.warn('Weather fetch failed (likely offline):', error);
+            console.warn('Weather fetch failed (using fallback):', error);
             // Show offline status
             this.updateWeatherUI('📡', '--', 'Offline Mode');
 

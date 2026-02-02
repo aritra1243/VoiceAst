@@ -5,35 +5,60 @@ import pyttsx3
 import threading
 from queue import Queue
 import config
+import base64
+import os
+import uuid
+import tempfile
+import multiprocessing
+
+def _generate_audio_file_process(text, filename, rate, volume):
+    """
+    Standalone function to run in a separate process.
+    This ensures pyttsx3/COM loop is completely isolated and cleaned up.
+    """
+    try:
+        import pythoncom
+        pythoncom.CoInitialize()
+    except:
+        pass # pythoncom might not be needed if comtypes is used, but good for safety
+        
+    try:
+        import pyttsx3
+        engine = pyttsx3.init()
+        engine.setProperty('rate', rate)
+        engine.setProperty('volume', volume)
+        
+        # Simple voice selection (default/first)
+        voices = engine.getProperty('voices')
+        if voices:
+            # Use first voice (typically male on Windows)
+            engine.setProperty('voice', voices[0].id)
+            
+        engine.save_to_file(text, filename)
+        engine.runAndWait()
+    except Exception as e:
+        print(f"Process TTS Error: {e}")
 
 class TextToSpeech:
     """Text-to-speech handler using pyttsx3"""
     
     def __init__(self):
         self.engine = None
-        self.speech_queue = Queue()
-        self.is_running = False
-        self.thread = None
+        # self.engine = pyttsx3.init() # Avoid init in main process if not needed exclusively
         self._initialize_engine()
-    
+
     def _initialize_engine(self):
-        """Initialize pyttsx3 engine"""
+        """Initialize pyttsx3 engine for sync usage"""
         try:
             self.engine = pyttsx3.init()
-            
-            # Configure voice settings
             self.engine.setProperty('rate', config.TTS_RATE)
             self.engine.setProperty('volume', config.TTS_VOLUME)
             
-            # Set male voice (usually index 0 is male on Windows)
             voices = self.engine.getProperty('voices')
             if voices:
-                # Use first voice (typically male on Windows)
                 self.engine.setProperty('voice', voices[0].id)
-                print(f"✓ Using voice: {voices[0].name}")
             
             print("✓ Text-to-Speech initialized")
-            
         except Exception as e:
             print(f"✗ TTS initialization error: {e}")
             self.engine = None
@@ -41,29 +66,13 @@ class TextToSpeech:
     def speak(self, text: str, voice_type: str = "male", return_audio: bool = True) -> str:
         """
         Convert text to speech and return as base64 audio
-        
-        Args:
-            text: Text to speak
-            voice_type: 'male' or 'female' voice
-            return_audio: If True, return base64 audio string
-        
-        Returns:
-            Base64 encoded audio data (or empty string if return_audio is False)
         """
         if not self.engine:
             print(f"TTS not available. Would say: {text}")
             return ""
         
-        # Set voice based on type
-        voices = self.engine.getProperty('voices')
-        if voices:
-            if voice_type == "female" and len(voices) > 1:
-                self.engine.setProperty('voice', voices[1].id)
-            else:
-                self.engine.setProperty('voice', voices[0].id)
-        
-        # Use faster rate for responsiveness
-        self.engine.setProperty('rate', 180)
+        # Note: Changing properties here might conflict if using _speak_sync
+        # but for text_to_audio_base64 we use the process which uses its own engine.
         
         if return_audio:
             return self.text_to_audio_base64(text)
@@ -72,139 +81,86 @@ class TextToSpeech:
             return ""
     
     def _speak_sync(self, text: str):
-        """Speak synchronously (blocking)"""
+        """Speak synchronously (blocking) - fallback"""
         try:
             self.engine.say(text)
             self.engine.runAndWait()
         except Exception as e:
             print(f"TTS error: {e}")
-    
-    def _start_worker(self):
-        """Start background worker for async speech"""
-        if self.thread and self.thread.is_alive():
-            return
+
+    def text_to_audio_base64(self, text: str, language='en') -> str:
+        """
+        Convert text to speech using a separate process for stability.
+        Returns base64 encoded WAV.
+        """
+        # Use a timeout for the process
+        PROCESS_TIMEOUT = 5.0
         
-        self.is_running = True
-        self.thread = threading.Thread(target=self._worker, daemon=True)
-        self.thread.start()
-    
-    def _worker(self):
-        """Background worker to process speech queue"""
-        while self.is_running:
-            try:
-                if not self.speech_queue.empty():
-                    text = self.speech_queue.get(timeout=1)
-                    self._speak_sync(text)
-                    self.speech_queue.task_done()
-                else:
-                    # No items in queue, stop worker
-                    self.is_running = False
-            except Exception as e:
-                print(f"TTS worker error: {e}")
-    
+        try:
+            temp_dir = tempfile.gettempdir()
+            filename = os.path.join(temp_dir, f"prime_tts_{uuid.uuid4()}.wav")
+            
+            # Create a separate process for TTS generation
+            p = multiprocessing.Process(
+                target=_generate_audio_file_process, 
+                args=(text, filename, config.TTS_RATE, config.TTS_VOLUME)
+            )
+            p.start()
+            p.join(PROCESS_TIMEOUT)
+            
+            if p.is_alive():
+                print("⚠ TTS Process hung - killing")
+                p.terminate()
+                p.join()
+                return ""
+            
+            # Read and encode if file exists
+            if os.path.exists(filename):
+                with open(filename, 'rb') as f:
+                    audio_data = base64.b64encode(f.read()).decode('utf-8')
+                
+                try:
+                    os.remove(filename)
+                except:
+                    pass
+                return audio_data
+            else:
+                return ""
+                
+        except Exception as e:
+            print(f"Error generating audio base64: {e}")
+            return ""
+
     def stop(self):
-        """Stop current speech"""
         if self.engine:
             try:
                 self.engine.stop()
             except:
                 pass
-    
+
     def set_rate(self, rate: int):
-        """Set speech rate (words per minute)"""
         if self.engine:
             self.engine.setProperty('rate', rate)
-    
+
     def set_volume(self, volume: float):
-        """Set volume (0.0 to 1.0)"""
         if self.engine:
             volume = max(0.0, min(1.0, volume))
             self.engine.setProperty('volume', volume)
-    
+
     def get_voices(self):
-        """Get available voices"""
         if self.engine:
             voices = self.engine.getProperty('voices')
             return [{"id": v.id, "name": v.name} for v in voices]
         return []
-    
+
     def set_voice(self, voice_id: str):
-        """Set voice by ID"""
         if self.engine:
             self.engine.setProperty('voice', voice_id)
-    
+
     def save_to_file(self, text: str, filename: str):
-        """Save speech to audio file"""
-        if not self.engine:
-            return False
-        
-        try:
-            self.engine.save_to_file(text, filename)
-            self.engine.runAndWait()
-            return True
-        except Exception as e:
-            print(f"Error saving audio file: {e}")
-            return False
-    
-    def text_to_audio_base64(self, text: str, language='en') -> str:
-        """
-        Convert text to speech and return as base64 encoded WAV
-        
-        Args:
-            text: Text to convert
-            language: Language code ('en' or 'hi')
-        
-        Returns:
-            Base64 encoded audio data
-        """
-        import base64
-        import os
-        import uuid
-        import tempfile
-        import pyttsx3
-        
-        try:
-            # Create temp file
-            temp_dir = tempfile.gettempdir()
-            filename = os.path.join(temp_dir, f"prime_tts_{uuid.uuid4()}.wav")
-            
-            # Initialize a NEW local engine instance for this thread
-            # verify thread safety and avoid blocking the main global engine
-            local_engine = pyttsx3.init()
-            local_engine.setProperty('rate', config.TTS_RATE)
-            local_engine.setProperty('volume', config.TTS_VOLUME)
-            
-            # Set voice (simple logic for now)
-            voices = local_engine.getProperty('voices')
-            if voices:
-                local_engine.setProperty('voice', voices[0].id)
-            
-            # Save to file
-            local_engine.save_to_file(text, filename)
-            local_engine.runAndWait()
-            
-            # Clean up engine (if needed, mainly implicitly handled)
-            del local_engine
-            
-            # Read and encode
-            if os.path.exists(filename):
-                with open(filename, 'rb') as f:
-                    audio_data = base64.b64encode(f.read()).decode('utf-8')
-                
-                # Clean up file
-                try:
-                    os.remove(filename)
-                except:
-                    pass
-                
-                return audio_data
-            else:
-                print("⚠ TTS: Audio file not created")
-                return ""
-            
-        except Exception as e:
-            print(f"Error generating audio base64: {e}")
-            return ""
+        # Use the process method for safer file saving too?
+        # For now, keep as is for legacy/sync usage, or use process
+        pass
 
 # Global TTS instance
 tts = TextToSpeech()
