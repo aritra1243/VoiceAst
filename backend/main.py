@@ -301,7 +301,69 @@ async def websocket_endpoint(websocket: WebSocket):
                             )
                             continue  # Skip normal processing
                     
-                    # Normal AI Brain processing (no camera or vision not available)
+                    # FAST PATH: Quick pattern matching for common commands (skip AI for speed)
+                    fast_patterns = {
+                        'screenshot': ('take_screenshot', {}, "Screenshot captured!"),
+                        'take a screenshot': ('take_screenshot', {}, "Screenshot captured!"),
+                        'volume up': ('volume_up', {}, "Volume up!"),
+                        'louder': ('volume_up', {}, "Louder!"),
+                        'volume down': ('volume_down', {}, "Volume down!"),
+                        'quieter': ('volume_down', {}, "Quieter!"),
+                        'mute': ('mute', {}, "Muted!"),
+                        'time': ('time', {}, ""),
+                        'what time': ('time', {}, ""),
+                        'date': ('date', {}, ""),
+                        "what's the date": ('date', {}, ""),
+                        'brightness up': ('brightness_up', {}, "Brighter!"),
+                        'brightness down': ('brightness_down', {}, "Dimmer!"),
+                    }
+                    
+                    command_lower = command_text.lower().strip()
+                    fast_match = None
+                    
+                    # Check for fast pattern match
+                    for pattern, (action, params, resp) in fast_patterns.items():
+                        if pattern in command_lower:
+                            fast_match = (action, params, resp)
+                            break
+                    
+                    # Check for "open X" pattern
+                    if not fast_match and command_lower.startswith('open '):
+                        app_name = command_lower.replace('open ', '').strip()
+                        fast_match = ('open_app', {'app_name': app_name}, f"Opening {app_name}!")
+                    
+                    # Check for "close X" pattern
+                    if not fast_match and command_lower.startswith('close '):
+                        app_name = command_lower.replace('close ', '').strip()
+                        fast_match = ('close_app', {'app_name': app_name}, f"Closing {app_name}!")
+                    
+                    if fast_match:
+                        # INSTANT execution - no AI needed!
+                        action, params, response_text = fast_match
+                        print(f"⚡ Fast path: {action}")
+                        
+                        action_result = await process_intent(action, params, language)
+                        if not response_text:  # For time/date, use the action result message
+                            response_text = action_result.get("message", "Done!")
+                        
+                        # Generate TTS
+                        audio_base64 = ""
+                        if response_text:
+                            audio_base64 = await asyncio.to_thread(tts.text_to_audio_base64, response_text, language)
+                        
+                        await manager.send_message({
+                            "type": "result",
+                            "success": action_result.get("success", True),
+                            "message": response_text,
+                            "audio": audio_base64,
+                            "language": language,
+                            "data": {"command": command_text, "action": action}
+                        }, websocket)
+                        
+                        await db.save_command(command=command_text, intent=action, response=response_text, success=True)
+                        continue  # Skip AI processing
+                    
+                    # Normal AI Brain processing (for complex/conversational commands)
                     if config.AI_ENABLED and ai_brain.is_available:
                         print(f"🤖 AI processing: '{command_text}'")
                         ai_result = await ai_brain.think(command_text)

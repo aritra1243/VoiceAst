@@ -67,42 +67,79 @@ class PrimeAssistant {
         setInterval(updateClock, 1000);
     }
 
-    // Weather (using wttr.in free API)
+    // Weather (using wttr.in with error handling & offline support)
     async fetchWeather() {
         try {
-            // Get user's location via IP
-            const geoRes = await fetch('https://ipapi.co/json/');
-            const geoData = await geoRes.json();
-            const city = geoData.city || 'Delhi';
+            let city = 'Delhi'; // Default fallback
 
-            // Fetch weather
-            const weatherRes = await fetch(`https://wttr.in/${city}?format=j1`);
+            // 1. Try browser geolocation first (more accurate)
+            const getCoords = () => new Promise((resolve, reject) => {
+                if (!navigator.geolocation) return reject();
+                navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 5000 });
+            });
+
+            try {
+                const pos = await getCoords();
+                const { latitude, longitude } = pos.coords;
+                // Reverse geocoding optional, but for wttr.in coords work too: "lat,lon"
+                city = `${latitude},${longitude}`;
+            } catch (e) {
+                // If blocked or unavailable, try IP lookup (with timeout)
+                try {
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 3000); // 3s timeout
+
+                    const geoRes = await fetch('https://ipapi.co/json/', { signal: controller.signal });
+                    const geoData = await geoRes.json();
+                    if (geoData.city) city = geoData.city;
+                    clearTimeout(timeoutId);
+                } catch (err) {
+                    console.log("Location lookup failed, utilizing default/offline mode");
+                }
+            }
+
+            // 2. Fetch weather (with timeout)
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout
+
+            const weatherRes = await fetch(`https://wttr.in/${city}?format=j1`, { signal: controller.signal });
             const weatherData = await weatherRes.json();
+            clearTimeout(timeoutId);
 
             const current = weatherData.current_condition[0];
             const temp = current.temp_C;
             const desc = current.weatherDesc[0].value;
+            // Get city name from areaName if we used coords
+            const locationName = weatherData.nearest_area[0].areaName[0].value || city;
 
             // Weather icon based on condition
             const icon = this.getWeatherIcon(desc);
 
-            const iconEl = document.querySelector('.weather-icon');
-            const tempEl = document.getElementById('weatherTemp');
-            const cityEl = document.getElementById('weatherCity');
+            this.updateWeatherUI(icon, temp, locationName);
 
-            if (iconEl) iconEl.textContent = icon;
-            if (tempEl) tempEl.textContent = `${temp}°C`;
-            if (cityEl) cityEl.textContent = city;
-
-            // Update every 10 minutes
-            setTimeout(() => this.fetchWeather(), 10 * 60 * 1000);
+            // Update every 30 minutes
+            setTimeout(() => this.fetchWeather(), 30 * 60 * 1000);
 
         } catch (error) {
-            console.error('Weather fetch error:', error);
-            const cityEl = document.getElementById('weatherCity');
-            if (cityEl) cityEl.textContent = 'Unavailable';
+            console.warn('Weather fetch failed (likely offline):', error);
+            // Show offline status
+            this.updateWeatherUI('📡', '--', 'Offline Mode');
+
+            // Retry in 1 minute
+            setTimeout(() => this.fetchWeather(), 60 * 1000);
         }
     }
+
+    updateWeatherUI(icon, temp, city) {
+        const iconEl = document.querySelector('.weather-icon');
+        const tempEl = document.getElementById('weatherTemp');
+        const cityEl = document.getElementById('weatherCity');
+
+        if (iconEl) iconEl.textContent = icon;
+        if (tempEl) tempEl.textContent = temp !== '--' ? `${temp}°C` : temp;
+        if (cityEl) cityEl.textContent = city;
+    }
+
 
     getWeatherIcon(desc) {
         desc = desc.toLowerCase();
@@ -263,18 +300,23 @@ class PrimeAssistant {
                 this.showResponse(data.message, data.success);
                 this.addToHistory(data.message, data.success);
 
-                // Play audio response
+
+                // Always ensure we go back to listening if conversation is active
+                const resumeListening = () => {
+                    if (this.conversationActive) {
+                        this.updateStatus('listening', 'Listening...');
+                        setTimeout(() => this.startListening(), 300);
+                    } else {
+                        this.updateStatus('online', 'System Online');
+                    }
+                };
+
+                // Play audio response if available
                 if (data.audio) {
-                    this.playAudio(data.audio, () => {
-                        // After audio, start listening again if successful
-                        if (data.success && this.conversationActive) {
-                            this.updateStatus('listening', 'Listening...'); // Explicitly update status
-                            setTimeout(() => this.startListening(), 300);
-                        }
-                    });
-                } else if (data.success && this.conversationActive) {
-                    this.updateStatus('listening', 'Listening...');
-                    setTimeout(() => this.startListening(), 500);
+                    this.playAudio(data.audio, resumeListening);
+                } else {
+                    // No audio, just resume immediately
+                    setTimeout(resumeListening, 500);
                 }
 
                 if (!data.success) {
@@ -436,18 +478,40 @@ class PrimeAssistant {
             return;
         }
 
-        const audio = new Audio(`data:audio/wav;base64,${base64Audio}`);
-        audio.onended = () => {
-            audio.remove();
+        try {
+            const audio = new Audio(`data:audio/wav;base64,${base64Audio}`);
+
+            // Safety flag to prevent double calling
+            let callbackCalled = false;
+            const safeCallback = () => {
+                if (!callbackCalled) {
+                    callbackCalled = true;
+                    if (onEnded) onEnded();
+                    audio.remove();
+                }
+            };
+
+            audio.onended = safeCallback;
+            audio.onerror = (e) => {
+                console.error("Audio playback error:", e);
+                safeCallback();
+            };
+
+            const playPromise = audio.play();
+            if (playPromise !== undefined) {
+                playPromise.catch((err) => {
+                    console.error('Audio play blocked/failed:', err);
+                    safeCallback();
+                });
+            }
+
+            // Failsafe timeout in case onended never fires (max 15 seconds)
+            setTimeout(safeCallback, 15000);
+
+        } catch (e) {
+            console.error("Audio setup error:", e);
             if (onEnded) onEnded();
-        };
-        audio.onerror = () => {
-            if (onEnded) onEnded();
-        };
-        audio.play().catch((err) => {
-            console.error('Audio play error:', err);
-            if (onEnded) onEnded();
-        });
+        }
     }
 
     // === Camera / Vision Methods ===

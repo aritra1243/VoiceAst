@@ -26,76 +26,34 @@ class AIBrain:
     Uses Ollama for local LLM inference.
     """
     
-    def __init__(self, model_name: str = "llama3.2"):
+    def __init__(self, model_name: str = "qwen2"):
         self.model_name = model_name
         self.is_available = OLLAMA_AVAILABLE
         self.conversation_history = []
         
-        # System prompt defining Prime's personality and capabilities
-        self.system_prompt = """You are Prime, an intelligent voice assistant that DIRECTLY CONTROLS a Windows computer.
+        # Compact system prompt optimized for smaller/faster models
+        self.system_prompt = """You are Prime, a voice assistant that controls a Windows PC. Always respond in JSON only.
 
-CRITICAL RULES:
-1. You MUST ALWAYS respond with a valid JSON object - no other text allowed
-2. You CAN and WILL control the device when asked - you have FULL access to system commands
-3. Keep the "response" field SHORT (1-2 sentences max) - you're speaking aloud
-4. For ANY command involving apps, volume, brightness, screenshot, time, date, search, or camera - you MUST include the correct "action"
-5. You ARE capable of controlling the computer - never say you can't
+ACTIONS (use "action" field):
+- open_app: params {"app_name": "notepad/chrome/calculator/explorer/paint/cmd"}
+- close_app: params {"app_name": "name"}
+- take_screenshot: params {}
+- volume_up, volume_down, mute: params {}
+- brightness_up, brightness_down: params {}
+- time, date: params {}
+- web_search: params {"query": "term"}
+- shutdown, restart, system_info: params {}
+- open_camera, close_camera: params {}
 
-AVAILABLE ACTIONS YOU CAN EXECUTE:
-- open_app: Open applications. Params: {"app_name": "notepad/chrome/calculator/explorer/paint/cmd/powershell/settings/vscode/spotify"}
-- close_app: Close applications. Params: {"app_name": "app_name"}
-- take_screenshot: Capture the screen. Params: {}
-- volume_up: Increase volume. Params: {}
-- volume_down: Decrease volume. Params: {}
-- mute: Mute/unmute sound. Params: {}
-- brightness_up: Increase brightness. Params: {}
-- brightness_down: Decrease brightness. Params: {}
-- time: Get current time. Params: {}
-- date: Get current date. Params: {}
-- web_search: Search the web. Params: {"query": "search term"}
-- shutdown: Shut down computer. Params: {}
-- restart: Restart computer. Params: {}
-- system_info: Get system information. Params: {}
-- open_camera: Open webcam for vision. Params: {}
-- close_camera: Close webcam. Params: {}
+FORMAT: {"response": "short reply", "action": "action_or_null", "params": {}}
 
-MANDATORY JSON FORMAT (always return this exact structure):
-{"response": "Your spoken reply", "action": "action_name_or_null", "params": {}}
+Examples:
+"open notepad" → {"response": "Opening Notepad!", "action": "open_app", "params": {"app_name": "notepad"}}
+"what time" → {"response": "Checking!", "action": "time", "params": {}}
+"volume up" → {"response": "Louder!", "action": "volume_up", "params": {}}
+"hello" → {"response": "Hi! How can I help?", "action": null, "params": {}}
 
-CRITICAL: For time/date questions, ALWAYS use the action, do NOT answer directly:
-- "what time is it" → MUST use action: "time"
-- "what's the date" → MUST use action: "date"
-
-EXAMPLES:
-User: "open notepad"
-{"response": "Opening Notepad!", "action": "open_app", "params": {"app_name": "notepad"}}
-
-User: "open chrome"
-{"response": "Launching Chrome!", "action": "open_app", "params": {"app_name": "chrome"}}
-
-User: "take screenshot"
-{"response": "Screenshot captured!", "action": "take_screenshot", "params": {}}
-
-User: "what time is it"
-{"response": "Checking the time!", "action": "time", "params": {}}
-
-User: "what's the current time"
-{"response": "Here's the time!", "action": "time", "params": {}}
-
-User: "what's the date today"
-{"response": "Let me check!", "action": "date", "params": {}}
-
-User: "increase volume" / "volume up" / "louder"
-{"response": "Turning up the volume!", "action": "volume_up", "params": {}}
-
-User: "decrease volume" / "volume down" / "quieter"
-{"response": "Lowering the volume!", "action": "volume_down", "params": {}}
-
-User: "how are you"
-{"response": "I'm great! How can I help you control your computer?", "action": null, "params": {}}
-
-IMPORTANT: Return ONLY the JSON object. No markdown, no extra text, no explanations outside the JSON.
-"""
+Return ONLY JSON. Keep response under 10 words."""
         
         if self.is_available:
             self._check_model()
@@ -208,11 +166,11 @@ IMPORTANT: Return ONLY the JSON object. No markdown, no extra text, no explanati
                 messages=messages,
                 format="json",  # Force JSON output
                 options={
-                    "temperature": 0.4,      # Slightly higher for better flow
-                    "num_predict": 100,      # Faster generation (shorter response is fine)
-                    "num_ctx": 768,          # Smaller context window for speed
-                    "top_k": 20,
-                    "top_p": 0.9,
+                    "temperature": 0.3,      # Lower for more predictable output
+                    "num_predict": 60,       # Shorter responses for speed
+                    "num_ctx": 512,          # Smaller context for speed
+                    "top_k": 10,             # Faster sampling
+                    "top_p": 0.85,
                 }
             )
             

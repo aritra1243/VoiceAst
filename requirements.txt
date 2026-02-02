@@ -4,17 +4,17 @@ uvicorn[standard]>=0.27.0
 websockets>=12.0
 
 # Voice Recognition (Offline)
-vosk>=0.3.45
+vosk>=0.3.50
 sounddevice>=0.4.6
 numpy>=1.26.0
 
 # Text to Speech (Offline)
 pyttsx3>=2.90
+pyaudio>=0.2.14
 
 # Device Control
 pyautogui>=0.9.54
 psutil>=5.9.8
-screen-brightness-control>=0.20.0
 Pillow>=10.0.0
 
 # Database
@@ -25,5 +25,5 @@ motor>=3.3.2
 python-dotenv>=1.0.0
 aiofiles>=23.2.1
 
-# AI (Local LLM)
+# AI (Local LLM & Vision)
 ollama>=0.4.0
