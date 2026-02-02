@@ -21,9 +21,47 @@ from device_controller import device_controller
 from flexible_nlp import FlexibleIntentRecognizer
 from ai_brain import ai_brain
 from vision_recognition import vision
+from system_monitor import SystemMonitor
 
-# Initialize flexible NLP (fallback)
+# Initialize WebSocket Manager (Moved up for dependencies)
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: List[WebSocket] = []
+
+    async def connect(self, websocket: WebSocket):
+        await websocket.accept()
+        self.active_connections.append(websocket)
+        print(f"Client connected. Active: {len(self.active_connections)}")
+
+    def disconnect(self, websocket: WebSocket):
+        if websocket in self.active_connections:
+            self.active_connections.remove(websocket)
+            print(f"Client disconnected. Active: {len(self.active_connections)}")
+
+    async def send_message(self, message: dict, websocket: WebSocket):
+        try:
+            await websocket.send_text(json.dumps(message))
+        except Exception as e:
+            print(f"Send error: {e}")
+
+    async def broadcast(self, message: dict):
+        for connection in self.active_connections:
+            try:
+                await connection.send_text(json.dumps(message))
+            except:
+                pass
+
+manager = ConnectionManager()
+
+# Initialize flexible NLP
 flexible_nlp = FlexibleIntentRecognizer()
+
+# Initialize System Monitor
+sys_monitor = SystemMonitor(manager)
+try:
+    sys_monitor.start()
+except Exception as e:
+    print(f"Failed to start System Monitor: {e}")
 
 # Log AI status
 if config.AI_ENABLED and ai_brain.is_available:
@@ -277,26 +315,23 @@ async def websocket_endpoint(websocket: WebSocket):
                 await manager.send_message({"type": "pong"}, websocket)
             
             elif message_type == "greeting":
-                # User said "Hey Prime" or clicked Start - greet them fast!
-                print("👋 Greeting activated!")
-                
-                # Short greetings for faster TTS
-                greetings = [
-                    "Hello! How can I help?",
-                    "Hi! What can I do for you?",
-                    "Hey! I'm listening.",
-                    "Yes? How can I help?",
-                ]
+                # Send greeting
                 import random
-                greeting_text = random.choice(greetings)
+                greetings = [
+                    "Hello Sir! How can I help?",
+                    "Yes Sir? How can I help?",
+                    "I'm listening, Sir.",
+                    "At your service, Sir."
+                ]
+                text = random.choice(greetings)
                 
-                # Generate audio with male voice
-                audio_base64 = tts.speak(greeting_text, voice_type="male")
+                # Generate TTS
+                audio_base64 = await asyncio.to_thread(tts.text_to_audio_base64, text, "en")
                 
                 await manager.send_message({
-                    "type": "result",
-                    "success": True,
-                    "message": greeting_text,
+                    "type": "result", 
+                    "success": True, 
+                    "message": text, 
                     "audio": audio_base64,
                     "is_greeting": True
                 }, websocket)

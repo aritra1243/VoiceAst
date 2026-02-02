@@ -77,6 +77,10 @@ Open your browser to **http://localhost:8000**
     - Teach: "This is John" (Show face to camera)
     - Ask: "Who is this?" (Show face again)
 
+### 🛡️ Proactive System Monitor
+- **Voice Alerts**: Warnings for High CPU (>90%), RAM (>95%), or Low Battery (<20%).
+- **Checks**: Runs silently every 60 seconds.
+
 ### 📨 Universal Messaging
 - "Send message to **John** on **WhatsApp** saying **Hello**"
 - "Send text to **Mom** on **Phone Link** saying **I'm late**"
