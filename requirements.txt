@@ -27,3 +27,6 @@ aiofiles>=23.2.1
 
 # AI (Local LLM & Vision)
 ollama>=0.4.0
+
+# HTTP
+requests>=2.31.0

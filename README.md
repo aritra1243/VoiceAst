@@ -71,28 +71,29 @@ Open your browser to **http://localhost:8000**
 
 ## Supported Functions
 
+### 🧠 Long-term Memory (NEW)
+- **Teach**: "Remember that my meeting is at 5 PM"
+- **Recall**: "When is my meeting?"
+- **Teach**: "Note that wifi password is 1234"
+- **Recall**: "What is the wifi password?"
+
 ### ⚡ Instant Commands (Fast Path)
 - "Volume up/down/mute"
 - "Take screenshot"
 - "Open [app name]" (e.g., notepad, calculator, chrome)
 - "What time/date is it"
 
-### 🧠 Intelligent Queries
-- "How do I fix a printer?"
-- "Write a poem about space"
-- "Analyze this image" (Click Camera button first)
-
 ### 🛠 System Control
 - File management (create, delete, list)
 - Brightness control
 - Web search
+- **Weather**: Shows automatically on the dashboard (Offline/Online auto-switch)
 
 ## Troubleshooting
 
-### 🌦️ Weather Not Showing?
-- The app needs **Location Permission** to get accurate weather.
-- If offline, it shows "Offline Mode". This is normal.
-- Check if `wttr.in` is accessible from your network.
+### 🌦️ Weather Issues?
+- The backend now fetches weather automatically via IP.
+- If you see "Offline Mode", check your internet connection. We use `ipapi.co` and `wttr.in`.
 
 ### 🐢 Slow AI?
 - Ensure you have the `qwen2` model pulled.
