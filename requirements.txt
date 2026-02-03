@@ -4,7 +4,7 @@ uvicorn[standard]>=0.27.0
 websockets>=12.0
 
 # Voice Recognition (Offline)
-vosk>=0.3.50
+vosk>=0.3.45
 sounddevice>=0.4.6
 numpy>=1.26.0
 
@@ -30,3 +30,7 @@ ollama>=0.4.0
 
 # HTTP
 requests>=2.31.0
+
+# Speaker Identification
+resemblyzer>=0.1.4
+torch>=1.13.0

@@ -22,6 +22,7 @@ from flexible_nlp import FlexibleIntentRecognizer
 from ai_brain import ai_brain
 from vision_recognition import vision
 from system_monitor import SystemMonitor
+from speaker_id import speaker_recognizer
 
 # Initialize WebSocket Manager (Moved up for dependencies)
 class ConnectionManager:
@@ -773,10 +774,47 @@ async def websocket_endpoint(websocket: WebSocket):
                             
                             # Use AI Brain for understanding
                             if config.AI_ENABLED and ai_brain.is_available:
+                                
+                                # SPEAKER IDENTIFICATION CHECK
+                                sender_title = ""
+                                if speaker_recognizer.is_available:
+                                    # We need to pass raw PCM data, not the stripped one? 
+                                    # Actually we have pcm_data (bytes) already.
+                                    
+                                    # Check if we should enroll (if intent is enrollment)
+                                    # But we don't know intent yet. Simple heuristic:
+                                    if "voice" in text.lower() and ("learn" in text.lower() or "enroll" in text.lower()):
+                                        # Skip verification, let it pass to enrollment intent
+                                        pass
+                                    else:
+                                        verify_result = speaker_recognizer.verify_voice(pcm_data)
+                                        if verify_result["match"]:
+                                            sender_title = "Sir"  # Owner detected
+                                            print(f"🎤 Voice verified: Owner ({verify_result['similarity']:.2f})")
+                                        else:
+                                            sender_title = "Guest" # Not owner
+                                            print(f"🎤 Voice verified: Guest ({verify_result['similarity']:.2f})")
+
                                 print(f"🤖 AI processing: '{text}'")
-                                ai_result = await ai_brain.think(text)
+                                
+                                # Inject context about speaker
+                                context_memories = []
+                                if sender_title == "Sir":
+                                    context_memories.append("User is the Owner (Sir).")
+                                else:
+                                    context_memories.append("User is a Guest.")
+                                    
+                                ai_result = await ai_brain.think(text, context_memories=context_memories)
                                 
                                 response_text = ai_result.get('response', '')
+                                
+                                # Add "Sir" prefix if applicable and not already present
+                                if sender_title == "Sir" and "sir" not in response_text.lower():
+                                    # Don't add if it's a very short response or if AI already added it
+                                    import random
+                                    if random.random() > 0.3: # 70% chance to add Sir
+                                        response_text = f"{response_text}, Sir."
+                                
                                 action = ai_result.get('action')
                                 params = ai_result.get('params', {})
                                 language = ai_result.get('language', 'en')
@@ -793,7 +831,18 @@ async def websocket_endpoint(websocket: WebSocket):
                                 
                                 # Execute action if available
                                 action_result = {"success": True, "message": response_text}
-                                if action:
+                                
+                                # Special Handling for Enrollment (since we have the audio here)
+                                if action == "enroll_voice" or (text and "learn my voice" in text.lower()):
+                                    print("🎤 Enrollment triggered...")
+                                    enroll_result = speaker_recognizer.enroll_voice(pcm_data)
+                                    if enroll_result["success"]:
+                                        response_text = "Voice learned successfully, Sir. i will recognize you from now on."
+                                        action_result = {"success": True, "message": response_text}
+                                    else:
+                                        response_text = f"Failed to learn voice: {enroll_result.get('error')}"
+                                        
+                                elif action:
                                     action_result = await process_intent(action, params, language)
                                     if action in ("time", "date"):
                                         response_text = action_result.get("message", response_text)
@@ -1113,6 +1162,21 @@ async def process_intent(intent: str, parameters: dict, language: str = "en") ->
                 "message": "I can help you control applications, manage files, adjust system settings, and answer questions. Try commands like 'open notepad', 'what time is it', or 'take screenshot'."
             }
         
+        # User Identity
+        elif intent == "enroll_voice":
+             return {
+                 "success": True,
+                 "message": "I am listening. Please keep speaking for a few seconds so I can learn your voice.",
+                 "action": "enroll_voice_step2" # Frontend/Main loop needs to handle the logic, but for now we just return message.
+                 # Actually, to enroll, we need the AUDIO data. 
+                 # This intent is triggered AFTER audio is processed. 
+                 # So we missed the audio? No, we had audio in the valid request.
+                 # Ideally, we should have enrolled it RIGHT THERE if we knew.
+                 # But we can't rewind.
+                 # Workaround: Tell user to say a specific phrase to enroll.
+                 # Better: We need the audio that triggered this.
+            }
+            
         # Unknown
         else:
             response = intent_recognizer.format_response(intent, parameters)

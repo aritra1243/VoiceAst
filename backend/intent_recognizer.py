@@ -135,6 +135,14 @@ class IntentRecognizer:
                 (re.compile(r"what\s+can\s+you\s+do", re.I), None),
                 (re.compile(r"commands", re.I), None),
             ],
+            
+            # Voice Identity
+            "enroll_voice": [
+                (re.compile(r"learn\s+(?:my\s+)?voice", re.I), None),
+                (re.compile(r"enroll\s+(?:my\s+)?voice", re.I), None),
+                (re.compile(r"remember\s+my\s+voice", re.I), None),
+                (re.compile(r"this\s+is\s+my\s+voice", re.I), None),
+            ],
         }
     
     def recognize(self, text: str) -> Dict:
@@ -212,6 +220,7 @@ class IntentRecognizer:
             "press_key": "Pressing {key}",
             "greeting": "Hello! How can I help you?",
             "help": "I can help you control your device, manage files, and answer questions. Try saying 'open notepad' or 'what time is it'",
+            "enroll_voice": "Starting voice enrollment. Please speak clearly.",
             "unknown": "I'm sorry, I don't understand that command. Say 'help' for available commands.",
         }
         
