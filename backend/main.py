@@ -1003,6 +1003,13 @@ async def process_intent(intent: str, parameters: dict, language: str = "en") ->
             if language == "hi" and result.get("success"):
                 result["message"] = "चमक घटाई जा रही है"
             return result
+            
+        elif intent == "switch_tab":
+            direction = parameters.get("direction", "next")
+            result = device_controller.switch_tabs(direction)
+            if language == "hi" and result.get("success"):
+                result["message"] = "टैब बदला जा रहा है"
+            return result
         
         elif intent in ("screenshot", "take_screenshot"):
             result = device_controller.take_screenshot()

@@ -72,6 +72,13 @@ class IntentRecognizer:
                 (re.compile(r"brightness\s+down", re.I), None),
                 (re.compile(r"make\s+it\s+darker", re.I), None),
             ],
+            "switch_tab": [
+                 (re.compile(r"switch\s+tab", re.I), "direction"),
+                 (re.compile(r"next\s+tab", re.I), "direction"), 
+                 (re.compile(r"previous\s+tab", re.I), "direction"),
+                 (re.compile(r"go\s+back\s+(?:to\s+)?(?:the\s+)?last\s+tab", re.I), "direction"),
+                 (re.compile(r"change\s+tab", re.I), "direction"),
+            ],
             "screenshot": [
                 (re.compile(r"take\s+(?:a\s+)?screenshot", re.I), None),
                 (re.compile(r"capture\s+(?:the\s+)?screen", re.I), None),
@@ -191,6 +198,9 @@ class IntentRecognizer:
             "mute": "Muting audio",
             "brightness_up": "Increasing brightness",
             "brightness_down": "Decreasing brightness",
+            "brightness_up": "Increasing brightness",
+            "brightness_down": "Decreasing brightness",
+            "switch_tab": "Switching tab",
             "screenshot": "Taking screenshot",
             "shutdown": "Shutting down system",
             "restart": "Restarting system",

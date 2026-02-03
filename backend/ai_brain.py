@@ -40,6 +40,7 @@ ACTIONS (use "action" field):
 - take_screenshot: params {}
 - volume_up, volume_down, mute: params {}
 - brightness_up, brightness_down: params {}
+- switch_tab: params {"direction": "next/previous"}
 - time, date: params {}
 - web_search: params {"query": "term"}
 - shutdown, restart, system_info: params {}
@@ -206,6 +207,7 @@ Return ONLY JSON. Keep response under 10 words."""
             ('volume up', 'louder', 'आवाज बढ़ा'): ('volume_up', "Turning up the volume!"),
             ('volume down', 'quieter', 'आवाज कम'): ('volume_down', "Lowering the volume!"),
             ('mute', 'म्यूट'): ('mute', "Muting!"),
+            ('switch tab', 'next tab', 'previous tab', 'change tab'): ('switch_tab', "Switching tab!"),
             ('time', 'समय', 'टाइम'): ('time', "Let me check the time."),
             ('date', 'तारीख'): ('date', "Let me check the date."),
             ('search', 'google', 'खोजो'): ('web_search', "Searching for that!"),
@@ -229,6 +231,13 @@ Return ONLY JSON. Keep response under 10 words."""
                                     params['app_name'] = words[i + 1]
                                 break
                 
+                # Extract direction for switch_tab
+                if action == 'switch_tab':
+                     if any(w in text for w in ['previous', 'back', 'last']):
+                         params['direction'] = 'previous'
+                     else:
+                         params['direction'] = 'next'
+
                 # Extract search query
                 if action == 'web_search':
                     for kw in ('search for', 'search', 'google'):

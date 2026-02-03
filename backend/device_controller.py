@@ -275,6 +275,27 @@ class DeviceController:
                 "error": str(e)
             }
     
+    def switch_tabs(self, direction: str = "next") -> Dict:
+        """Switch browser tabs"""
+        try:
+            if direction == "next":
+                pyautogui.hotkey('ctrl', 'tab')
+                message = "Switched to next tab"
+            else:
+                pyautogui.hotkey('ctrl', 'shift', 'tab')
+                message = "Switched to previous tab"
+                
+            return {
+                "success": True,
+                "message": message
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "message": f"Failed to switch tabs: {str(e)}",
+                "error": str(e)
+            }
+    
     def take_screenshot(self) -> Dict:
         """Take a screenshot"""
         try:
