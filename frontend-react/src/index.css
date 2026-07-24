@@ -1,0 +1,311 @@
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;900&family=Rajdhani:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* =====================================================
+   PRIME AI ASSISTANT — GLOBAL BASE STYLES
+   ===================================================== */
+
+:root {
+  --cyan: #00f7ff;
+  --blue: #0080ff;
+  --bg-deep: #050a14;
+  --bg-panel: rgba(0, 20, 45, 0.72);
+  --border-glow: rgba(0, 247, 255, 0.25);
+  --green: #00ff88;
+  --red: #ff3366;
+  --amber: #ffaa00;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+}
+
+body {
+  font-family: 'Rajdhani', sans-serif;
+  background: var(--bg-deep);
+  color: #c8f0ff;
+  overflow-x: hidden;
+}
+
+/* ── Animated grid background ── */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background:
+    linear-gradient(90deg, rgba(0, 247, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(rgba(0, 247, 255, 0.03) 1px, transparent 1px);
+  background-size: 60px 60px;
+  animation: dataFlow 6s linear infinite;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ── CRT scan-lines overlay ── */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.12) 2px,
+    rgba(0, 0, 0, 0.12) 4px
+  );
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.35;
+}
+
+@keyframes dataFlow {
+  0% { background-position: 0 0; }
+  100% { background-position: 0 60px; }
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-glow); border-radius: 2px; }
+
+/* =====================================================
+   GLASSMORPHISM CARD
+   ===================================================== */
+.glass-card {
+  background: var(--bg-panel);
+  backdrop-filter: blur(14px) saturate(160%);
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
+  border: 1px solid var(--border-glow);
+  position: relative;
+  overflow: hidden;
+}
+
+/* Corner bracket decoration */
+.glass-card::before,
+.glass-card::after {
+  content: '';
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border-color: var(--cyan);
+  border-style: solid;
+  opacity: 0.6;
+  transition: opacity 0.3s;
+}
+.glass-card::before {
+  top: 6px; left: 6px;
+  border-width: 2px 0 0 2px;
+}
+.glass-card::after {
+  bottom: 6px; right: 6px;
+  border-width: 0 2px 2px 0;
+}
+.glass-card:hover::before,
+.glass-card:hover::after {
+  opacity: 1;
+}
+
+/* =====================================================
+   HUD BUTTON
+   ===================================================== */
+.hud-btn {
+  font-family: 'Orbitron', sans-serif;
+  letter-spacing: 0.1em;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  padding: 0.5rem 1.2rem;
+  border: 1px solid var(--cyan);
+  color: var(--cyan);
+  background: rgba(0, 247, 255, 0.08);
+  cursor: pointer;
+  transition: all 0.25s ease;
+  clip-path: polygon(8px 0%, 100% 0%, calc(100% - 8px) 100%, 0% 100%);
+  position: relative;
+  overflow: hidden;
+}
+.hud-btn:hover {
+  background: rgba(0, 247, 255, 0.2);
+  box-shadow: 0 0 18px rgba(0, 247, 255, 0.5);
+  color: #fff;
+}
+.hud-btn.danger {
+  border-color: var(--red);
+  color: var(--red);
+  background: rgba(255, 51, 102, 0.08);
+}
+.hud-btn.danger:hover {
+  background: rgba(255, 51, 102, 0.2);
+  box-shadow: 0 0 18px rgba(255, 51, 102, 0.5);
+  color: #fff;
+}
+
+/* =====================================================
+   SCANNER CORE — RADAR
+   ===================================================== */
+.scanner-ring {
+  position: absolute;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 247, 255, 0.18);
+}
+
+.scanner-sweep {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg,
+    transparent 320deg,
+    rgba(0, 247, 255, 0.05) 335deg,
+    rgba(0, 247, 255, 0.35) 355deg,
+    rgba(0, 247, 255, 0.15) 360deg
+  );
+  animation: radarSweep 3s linear infinite;
+}
+
+@keyframes radarSweep {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+/* Sniker / scanner line marks on rings */
+.ring-tick {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 100%;
+  height: 1px;
+  transform-origin: left center;
+}
+.ring-tick::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: -1px;
+  width: 6px;
+  height: 3px;
+  background: var(--cyan);
+  opacity: 0.5;
+  box-shadow: 0 0 4px var(--cyan);
+}
+
+/* Arc reactor center glow */
+.arc-reactor {
+  background: radial-gradient(circle at center,
+    #ffffff 0%,
+    #a0f8ff 18%,
+    #00f7ff 36%,
+    rgba(0,128,255,0.6) 55%,
+    rgba(0,40,100,0.3) 75%,
+    transparent 100%
+  );
+  animation: pulseGlow 2.5s ease-in-out infinite;
+}
+
+@keyframes pulseGlow {
+  0%, 100% {
+    box-shadow:
+      0 0 20px rgba(0,247,255,0.5),
+      0 0 50px rgba(0,247,255,0.3),
+      inset 0 0 20px rgba(0,247,255,0.2);
+  }
+  50% {
+    box-shadow:
+      0 0 40px rgba(0,247,255,0.9),
+      0 0 100px rgba(0,247,255,0.5),
+      inset 0 0 40px rgba(0,247,255,0.4);
+  }
+}
+
+/* =====================================================
+   WAVEFORM VISUALIZER BARS
+   ===================================================== */
+.viz-bar {
+  width: 3px;
+  background: linear-gradient(to top, var(--blue), var(--cyan));
+  border-radius: 2px;
+  transition: height 0.1s ease;
+  animation: barPulse var(--delay, 0.8s) ease-in-out infinite alternate;
+}
+
+@keyframes barPulse {
+  from { transform: scaleY(0.3); opacity: 0.5; }
+  to   { transform: scaleY(1);   opacity: 1; }
+}
+
+/* =====================================================
+   STATUS DOT STATES
+   ===================================================== */
+.status-online  { background: var(--green); box-shadow: 0 0 8px var(--green); }
+.status-offline { background: var(--red);   box-shadow: 0 0 8px var(--red); }
+.status-listen  { background: var(--amber); box-shadow: 0 0 8px var(--amber); }
+
+/* =====================================================
+   ORBITRON TEXT GLOW
+   ===================================================== */
+.text-glow-cyan {
+  color: var(--cyan);
+  text-shadow: 0 0 15px rgba(0,247,255,0.6), 0 0 30px rgba(0,247,255,0.3);
+}
+.text-glow-green {
+  color: var(--green);
+  text-shadow: 0 0 10px rgba(0,255,136,0.6);
+}
+.text-glow-red {
+  color: var(--red);
+  text-shadow: 0 0 10px rgba(255,51,102,0.6);
+}
+.text-glow-amber {
+  color: var(--amber);
+  text-shadow: 0 0 10px rgba(255,170,0,0.6);
+}
+
+/* =====================================================
+   HISTORY ITEM
+   ===================================================== */
+.history-item {
+  border-left: 2px solid var(--border-glow);
+  padding-left: 10px;
+  transition: border-color 0.3s;
+  animation: fadeInUp 0.4s ease-out;
+}
+.history-item.success { border-left-color: var(--green); }
+.history-item.fail    { border-left-color: var(--red); }
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* =====================================================
+   SNIKER / SEGMENT LINES on scanner
+   ===================================================== */
+.sniker-line {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(0,247,255,0.6) 50%, transparent);
+  transform-origin: left center;
+  pointer-events: none;
+}
+
+.sniker-tick-outer {
+  stroke: rgba(0,247,255,0.5);
+  stroke-width: 1.5;
+}
+.sniker-tick-inner {
+  stroke: rgba(0,247,255,0.25);
+  stroke-width: 1;
+}
