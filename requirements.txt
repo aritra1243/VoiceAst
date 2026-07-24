@@ -25,12 +25,15 @@ motor>=3.3.2
 python-dotenv>=1.0.0
 aiofiles>=23.2.1
 
-# AI (Local LLM & Vision)
-ollama>=0.4.0
-
 # HTTP
 requests>=2.31.0
 
-# Speaker Identification
-resemblyzer>=0.1.4
-torch>=1.13.0
+# Custom Local ML Models (replaces Ollama + Resemblyzer)
+scikit-learn>=1.4.0
+librosa>=0.10.0
+torch>=2.0.0
+torchvision>=0.15.0
+torchaudio>=2.0.0
+
+# Vision training (COCO captions, image processing)
+pycocotools>=2.0.7

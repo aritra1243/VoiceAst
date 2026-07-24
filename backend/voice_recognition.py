@@ -1,9 +1,56 @@
 """
-Voice recognition module using Vosk (offline speech recognition)
+Voice recognition module using Vosk (offline speech recognition).
+Vosk model is auto-downloaded and cached in models/ on first run.
 """
 import json
 import queue
+import zipfile
+import urllib.request
+import sys
+from pathlib import Path
 import config
+
+# --- Vosk model auto-downloader -----------------------------------------------
+VOSK_MODEL_URL = (
+    "https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip"
+)
+
+
+def _auto_download_vosk():
+    """
+    Download and extract the Vosk small-EN model if not already present.
+    Called once on first import -- subsequent imports skip the download.
+    """
+    model_path = config.VOSK_MODEL_PATH
+    if Path(model_path).exists():
+        return  # Already available
+
+    models_dir = Path(model_path).parent
+    models_dir.mkdir(parents=True, exist_ok=True)
+    zip_dest   = models_dir / "vosk-model-small-en-us-0.15.zip"
+
+    print("[...] Vosk model not found -- auto-downloading (~50 MB) ...")
+
+    def _progress(count, block_size, total):
+        pct = min(int(count * block_size * 100 / max(total, 1)), 100)
+        bar = "#" * (pct // 5)
+        print(f"\r   [{bar:<20}] {pct}%", end="", flush=True)
+
+    try:
+        urllib.request.urlretrieve(VOSK_MODEL_URL, zip_dest, reporthook=_progress)
+        print("\n   Extracting ...")
+        with zipfile.ZipFile(zip_dest, "r") as z:
+            z.extractall(models_dir)
+        zip_dest.unlink(missing_ok=True)
+        print(f"? Vosk model extracted to: {model_path}")
+    except Exception as e:
+        print(f"\n[ERR] Auto-download failed: {e}")
+        print(f"   Please manually download from: {VOSK_MODEL_URL}")
+        print(f"   And extract to: {models_dir}")
+
+
+# Attempt auto-download before Vosk is imported
+_auto_download_vosk()
 
 # Optional imports - gracefully handle if not installed
 try:
@@ -33,7 +80,7 @@ class VoiceRecognition:
     def _initialize_model(self):
         """Initialize Vosk model"""
         if not VOSK_AVAILABLE:
-            print("✗ Vosk not installed - voice recognition unavailable")
+            print("[X] Vosk not installed - voice recognition unavailable")
             print("  Install with: pip install vosk sounddevice numpy")
             print("  App will use browser's speech recognition as fallback")
             self.is_initialized = False
@@ -47,10 +94,10 @@ class VoiceRecognition:
             self.recognizer = KaldiRecognizer(self.model, self.sample_rate)
             self.is_initialized = True
             
-            print("✓ Voice recognition initialized")
+            print("? Voice recognition initialized")
             
         except Exception as e:
-            print(f"✗ Vosk initialization error: {e}")
+            print(f"[X] Vosk initialization error: {e}")
             print(f"  Please ensure model is downloaded to: {config.VOSK_MODEL_PATH}")
             print(f"  Run: python setup.py")
             print(f"  App will use browser's speech recognition as fallback")

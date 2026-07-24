@@ -1,0 +1,48 @@
+{
+  "intent_model": {
+    "trained_at": "2026-07-23T18:32:37.109668",
+    "n_samples": 5060,
+    "n_classes": 23,
+    "cv_accuracy_mean": 1.0,
+    "cv_accuracy_std": 0.0,
+    "test_accuracy": 1.0,
+    "classes": [
+      "brightness_down",
+      "brightness_up",
+      "close_app",
+      "create_file",
+      "date",
+      "delete_file",
+      "enroll_voice",
+      "greeting",
+      "help",
+      "list_files",
+      "mute",
+      "open_app",
+      "press_key",
+      "restart",
+      "screenshot",
+      "shutdown",
+      "switch_tab",
+      "system_info",
+      "time",
+      "type_text",
+      "volume_down",
+      "volume_up",
+      "web_search"
+    ]
+  },
+  "speaker_model": {
+    "trained_at": "2026-07-23T18:47:07.233537",
+    "n_speakers": 10,
+    "n_utterances": 150,
+    "best_eer": 0.028946043123338372,
+    "n_epochs": 20,
+    "architecture": {
+      "input_dim": 40,
+      "hidden_dim": 128,
+      "embed_dim": 128,
+      "n_layers": 2
+    }
+  }
+}

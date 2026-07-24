@@ -21,18 +21,28 @@ PORT = int(os.getenv("PORT", 8000))
 
 # Vosk Model Path
 VOSK_MODEL_PATH = BASE_DIR / os.getenv(
-    "VOSK_MODEL_PATH", 
+    "VOSK_MODEL_PATH",
     "models/vosk-model-small-en-us-0.15"
 )
+
+# Custom-trained local model paths (replaces Ollama + Resemblyzer)
+CUSTOM_MODELS_DIR = BASE_DIR / "models_training" / "saved_models"
+INTENT_MODEL_PATH     = CUSTOM_MODELS_DIR / "intent_model.pkl"
+INTENT_VECTORIZER_PATH = CUSTOM_MODELS_DIR / "intent_vectorizer.pkl"
+INTENT_ENCODER_PATH   = CUSTOM_MODELS_DIR / "intent_label_encoder.pkl"
+SPEAKER_MODEL_PATH    = CUSTOM_MODELS_DIR / "speaker_model.pth"
+VISION_MODEL_PATH     = CUSTOM_MODELS_DIR / "vision_model.pth"
+VISION_VOCAB_PATH     = CUSTOM_MODELS_DIR / "vision_vocab.json"
 
 # TTS Settings
 TTS_RATE = int(os.getenv("TTS_RATE", 150))
 TTS_VOLUME = float(os.getenv("TTS_VOLUME", 0.9))
 
-# AI Settings (Ollama)
+# AI Settings — Ollama removed; custom local models used instead
+# These settings are DEPRECATED but kept for reference during migration
 AI_ENABLED = os.getenv("AI_ENABLED", "true").lower() == "true"
-OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2")
-OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
+# OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2")   # DEPRECATED
+# OLLAMA_HOST  = os.getenv("OLLAMA_HOST", "...")       # DEPRECATED
 
 # Security Settings
 ENABLE_DANGEROUS_COMMANDS = os.getenv("ENABLE_DANGEROUS_COMMANDS", "false").lower() == "true"
