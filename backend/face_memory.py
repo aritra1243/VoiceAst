@@ -2,11 +2,24 @@ import cv2
 import numpy as np
 import base64
 import os
+import sys
 import json
 import asyncio
+from pathlib import Path
+
+ROOT = Path(__file__).parent.parent
+sys.path.insert(0, str(ROOT))
+import config
+
+# Store face data in a consistent location under models/
+_FACE_DIR = config.BASE_DIR / "models" / "face_data"
 
 class FaceMemory:
-    def __init__(self, data_file="faces.yml", names_file="face_names.json"):
+    def __init__(self,
+                 data_file=str(_FACE_DIR / "faces.yml"),
+                 names_file=str(_FACE_DIR / "face_names.json")):
+        # Ensure directory exists
+        _FACE_DIR.mkdir(parents=True, exist_ok=True)
         self.data_file = data_file
         self.names_file = names_file
         self.face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')

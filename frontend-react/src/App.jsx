@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import Header      from './components/Header';
 import ScannerCore from './components/ScannerCore';
 import VoiceCard   from './components/VoiceCard';
@@ -9,12 +9,41 @@ import { useWebSocket } from './hooks/useWebSocket';
 
 export default function App() {
   const [isListening,    setIsListening]    = useState(false);
+  const [isTalking,      setIsTalking]      = useState(false);   // AI is speaking
   const [history,        setHistory]        = useState([]);
   const [totalCommands,  setTotalCommands]  = useState(0);
   const [successCount,   setSuccessCount]   = useState(0);
 
+  // Audio player ref to detect when TTS audio finishes
+  const audioRef = useRef(null);
+
+  /* Play base64 audio and toggle isTalking while it plays */
+  const playAudio = useCallback((audioBase64) => {
+    if (!audioBase64) return;
+    try {
+      // Stop any currently playing audio
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+      const audio = new Audio(`data:audio/wav;base64,${audioBase64}`);
+      audioRef.current = audio;
+      setIsTalking(true);
+      audio.play().catch(() => {});
+      audio.onended = () => setIsTalking(false);
+      audio.onerror = () => setIsTalking(false);
+    } catch {
+      setIsTalking(false);
+    }
+  }, []);
+
   // Handle messages from WebSocket
   const handleMessage = useCallback((data) => {
+    // Play TTS audio from any result/greeting that contains one
+    if (data.audio) {
+      playAudio(data.audio);
+    }
+
     if (data.type === 'result') {
       const now = new Date();
       const timeStr = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
@@ -25,7 +54,7 @@ export default function App() {
       setTotalCommands(c => c + 1);
       if (data.success) setSuccessCount(c => c + 1);
     }
-  }, []);
+  }, [playAudio]);
 
   const { status: wsStatus, send } = useWebSocket(handleMessage);
 
@@ -48,9 +77,13 @@ export default function App() {
           <HistoryCard history={history} />
         </div>
 
-        {/* Center column — Scanner */}
+        {/* Center column — 3D Robotic Head */}
         <div className="flex items-center justify-center sticky top-4">
-          <ScannerCore isListening={isListening} wsStatus={wsStatus} />
+          <ScannerCore
+            isListening={isListening}
+            isTalking={isTalking}
+            wsStatus={wsStatus}
+          />
         </div>
 
         {/* Right column — 2 stacked cards */}
@@ -66,7 +99,7 @@ export default function App() {
       {/* ── Footer ── */}
       <footer className="mt-6 text-center">
         <p className="font-orbitron text-[8px] tracking-[0.3em] text-[rgba(0,247,255,0.2)] uppercase">
-          PRIME Autonomous Intelligence System · Ver 2.1.0 · © 2026 Stark Systems
+          PRIME Autonomous Intelligence System · Ver 3.0.0 · © 2026 Stark Systems
         </p>
       </footer>
     </div>

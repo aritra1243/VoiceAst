@@ -15,6 +15,9 @@ BASE_DIR = Path(__file__).parent.parent
 MONGODB_URL = os.getenv("MONGODB_URL", "mongodb://localhost:27017")
 DATABASE_NAME = os.getenv("DATABASE_NAME", "voice_assistant")
 
+# PostgreSQL Configuration (for image/screenshot storage)
+POSTGRES_URL = os.getenv("POSTGRES_URL", "postgresql://postgres:password@localhost:5432/voiceast_media")
+
 # Server Configuration
 HOST = os.getenv("HOST", "0.0.0.0")
 PORT = int(os.getenv("PORT", 8000))
@@ -39,10 +42,10 @@ TTS_RATE = int(os.getenv("TTS_RATE", 150))
 TTS_VOLUME = float(os.getenv("TTS_VOLUME", 0.9))
 
 # AI Settings — Ollama removed; custom local models used instead
-# These settings are DEPRECATED but kept for reference during migration
 AI_ENABLED = os.getenv("AI_ENABLED", "true").lower() == "true"
-# OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2")   # DEPRECATED
-# OLLAMA_HOST  = os.getenv("OLLAMA_HOST", "...")       # DEPRECATED
+# OLLAMA_MODEL = "qwen2"  # DEPRECATED — kept for reference only
+# OLLAMA_HOST  = "..."    # DEPRECATED — kept for reference only
+OLLAMA_MODEL = "custom-local"  # Placeholder so existing log lines don't crash
 
 # Security Settings
 ENABLE_DANGEROUS_COMMANDS = os.getenv("ENABLE_DANGEROUS_COMMANDS", "false").lower() == "true"

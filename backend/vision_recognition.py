@@ -227,12 +227,22 @@ class VisionRecognition:
     async def read_text(self, image_base64: str) -> Dict:
         """
         Attempt to read text in the image.
-        Note: the current model is a scene captioner, not an OCR system.
-        For OCR, integrate pytesseract separately.
+
+        ⚠️  IMPORTANT: This model is a scene CAPTIONER (EfficientNet + LSTM),
+        NOT an OCR system. It will describe the scene, not extract actual text.
+
+        For real OCR (reading actual text from images/screenshots), install
+        pytesseract:
+            pip install pytesseract
+            # Also install Tesseract OCR engine: https://github.com/UB-Mannheim/tesseract/wiki
+        Then call: pytesseract.image_to_string(pil_image)
         """
         result = await self.analyze_image(image_base64)
         if result["success"] and not result["description"]:
             result["description"] = "No text detected."
+        # Add a note so the user knows what happened
+        if result["success"]:
+            result["note"] = "Scene description (not OCR). For text extraction, pytesseract is needed."
         return result
 
 

@@ -14,6 +14,7 @@ from typing import List
 # Import modules
 import config
 from database import db
+from image_store import image_store
 from voice_recognition import voice_recognition
 from text_to_speech import tts
 from intent_recognizer import intent_recognizer
@@ -66,9 +67,72 @@ except Exception as e:
 
 # Log AI status
 if config.AI_ENABLED and ai_brain.is_available:
-    print(f"✓ AI Brain enabled with model: {config.OLLAMA_MODEL}")
+    print(f"✓ AI Brain enabled (custom local model)")
 else:
     print("⚠ AI Brain disabled or unavailable - using pattern matching")
+
+# ==================== Owner Recognition Helpers ====================
+
+# The name stored in face_memory when the owner trained their own face.
+# Change this to whatever name you used when you said "this is [name]".
+OWNER_FACE_NAME = os.getenv("OWNER_FACE_NAME", "Aritra")
+
+def _get_owner_title_from_voice(pcm_data: bytes) -> str:
+    """
+    Run speaker verification against the enrolled owner voice profile.
+    Returns 'Sir' if the voice matches the owner, '' otherwise.
+    Called from voice_audio_file and audio_stream paths.
+    """
+    if not speaker_recognizer.is_available:
+        return ""
+    try:
+        result = speaker_recognizer.verify_voice(pcm_data)
+        if result.get("match"):
+            print(f"🎤 Voice: Owner recognised (similarity={result['similarity']:.2f})")
+            return "Sir"
+        else:
+            print(f"🎤 Voice: Guest (similarity={result['similarity']:.2f})")
+            return ""
+    except Exception as e:
+        print(f"[WRN] Speaker verify error: {e}")
+        return ""
+
+def _get_owner_title_from_face(image_base64: str) -> str:
+    """
+    Run face recognition against the trained face model.
+    Returns 'Sir' if the detected face matches OWNER_FACE_NAME, '' otherwise.
+    Called from voice_command path (camera frame available).
+    """
+    if not image_base64:
+        return ""
+    try:
+        from face_memory import face_memory
+        if not face_memory.is_trained:
+            return ""
+        recognition = face_memory.recognize_face(image_base64)
+        # recognize_face returns "Name (XX% confidence)" or "Unknown Person"
+        if OWNER_FACE_NAME.lower() in recognition.lower():
+            print(f"📸 Face: Owner recognised → {recognition}")
+            return "Sir"
+        elif "unknown" not in recognition.lower() and "no face" not in recognition.lower():
+            print(f"📸 Face: Guest recognised → {recognition}")
+            return ""
+    except Exception as e:
+        print(f"[WRN] Face recognition error: {e}")
+    return ""
+
+def _apply_owner_title(response_text: str, title: str) -> str:
+    """
+    Append ', Sir.' to response if owner is detected and it isn't already there.
+    Never appends to very short responses (< 5 chars).
+    """
+    if not title or len(response_text) < 5:
+        return response_text
+    if "sir" in response_text.lower():
+        return response_text  # already has it
+    return f"{response_text}, Sir."
+
+import os as _os  # for OWNER_FACE_NAME env read above
 
 # Create FastAPI app
 app = FastAPI(
@@ -116,8 +180,11 @@ async def startup_event():
     print("VoiceAst - Voice Assistant Starting")
     print("=" * 60)
     
-    # Connect to database
+    # Connect to MongoDB
     await db.connect()
+    
+    # Connect to PostgreSQL image store
+    await image_store.connect()
     
     # Check voice recognition
     if not voice_recognition.is_initialized:
@@ -131,6 +198,7 @@ async def startup_event():
 async def shutdown_event():
     """Cleanup on shutdown"""
     await db.close()
+    await image_store.close()
     print("Server shutdown complete")
 
 # ==================== REST API Endpoints ====================
@@ -156,10 +224,13 @@ async def serve_js():
 @app.get("/api/health")
 async def health_check():
     """Health check endpoint"""
+    pg_stats = await image_store.get_stats()
     return {
         "status": "healthy",
         "voice_recognition": voice_recognition.is_initialized,
-        "database": db.connected,
+        "database_mongo": db.connected,
+        "database_postgres": image_store.connected,
+        "image_store_stats": pg_stats,
         "tts": tts.engine is not None
     }
 
@@ -174,6 +245,36 @@ async def clear_history():
     """Clear command history"""
     success = await db.clear_history()
     return {"success": success}
+
+# ---- Image Store endpoints (PostgreSQL) ----
+
+@app.get("/api/images")
+async def list_images(limit: int = 20):
+    """List recently saved webcam photos"""
+    images = await image_store.list_images(limit)
+    return {"images": images, "count": len(images)}
+
+@app.get("/api/images/{label}")
+async def get_image_by_label(label: str):
+    """Get a saved webcam photo by label"""
+    result = await image_store.get_image(label)
+    if result:
+        return {"found": True, "image": result}
+    return JSONResponse({"found": False, "error": f"No image found for label '{label}'"}, status_code=404)
+
+@app.get("/api/screenshots")
+async def list_screenshots(limit: int = 20):
+    """List recently saved screenshots"""
+    shots = await image_store.list_screenshots(limit)
+    return {"screenshots": shots, "count": len(shots)}
+
+@app.get("/api/screenshots/latest")
+async def get_latest_screenshot():
+    """Get the most recent screenshot"""
+    result = await image_store.get_screenshot()
+    if result:
+        return {"found": True, "screenshot": result}
+    return JSONResponse({"found": False, "error": "No screenshots saved yet"}, status_code=404)
 
 @app.get("/api/weather")
 async def get_weather():
@@ -350,8 +451,26 @@ async def websocket_endpoint(websocket: WebSocket):
                         "command": command_text
                     }, websocket)
                     
-                    # If image is provided, use vision model for the response
-                    if image_base64 and vision.is_available:
+                    # If image is provided AND command is a visual question, use vision model
+                    VISUAL_KEYWORDS = (
+                        "what", "who", "describe", "see", "show", "look",
+                        "read", "tell me", "identify", "recognize", "what's",
+                        "what is", "how many", "is there", "can you see",
+                        "analyze", "examine", "inspect", "detect"
+                    )
+                    is_visual_question = (
+                        image_base64
+                        and vision.is_available
+                        and any(kw in command_text.lower() for kw in VISUAL_KEYWORDS)
+                        # Don't hijack clear action commands
+                        and not any(kw in command_text.lower() for kw in (
+                            "open ", "close ", "volume", "screenshot", "brightness",
+                            "search for", "remember that", "play ", "mute",
+                            "take a photo", "save this"
+                        ))
+                    )
+
+                    if is_visual_question:
                         print(f"👁️ Vision Q&A: '{command_text}'")
                         
                         # Create a prompt that combines the question with image analysis
@@ -425,28 +544,33 @@ async def websocket_endpoint(websocket: WebSocket):
                             await db.save_command(command=command_text, intent="memory_store", response=response_text, success=True)
                             continue # Skip further processing
                     
-                    # 3. Visual Memory Triggers (Face Rec)
-                    # "This is [Name]" -> Train
-                    face_train_match = re.search(r'this is\s+(.+)', command_lower)
+                    # 3. Visual Memory Triggers (Face Recognition)
+                    # "This is [Name]" -> Train face
+                    # Guard: only trigger if image is present and name looks like a real name
+                    face_train_match = re.search(r'this is\s+([a-zA-Z][a-zA-Z\s]{1,30})$', command_lower)
+                    GENERIC_WORDS = {"this", "that", "it", "broken", "wrong", "working", "done", "fine", "okay", "good", "bad", "nice", "cool"}
                     if face_train_match and image_base64:
-                        from face_memory import face_memory
-                        name = face_train_match.group(1).strip()
-                        print(f"📸 Learning face: {name}")
-                        
-                        success = face_memory.train_face(image_base64, name)
-                        msg = f"I've learned that this is {name}." if success else "I couldn't see a face clearly. Please try again."
-                        
-                        # TTS
-                        t_audio = await asyncio.to_thread(tts.text_to_audio_base64, msg, language)
-                        
-                        await manager.send_message({
-                            "type": "result", 
-                            "success": success, 
-                            "message": msg,
-                            "audio": t_audio, # Fixed variable name
-                            "data": {"intent": "face_train"}
-                        }, websocket)
-                        continue
+                        candidate_name = face_train_match.group(1).strip()
+                        # Skip if it looks like a generic word, not a person name
+                        if candidate_name.lower() not in GENERIC_WORDS and len(candidate_name) >= 2:
+                            from face_memory import face_memory
+                            name = candidate_name
+                            print(f"📸 Learning face: {name}")
+                            
+                            success = face_memory.train_face(image_base64, name)
+                            msg = f"I've learned that this is {name}." if success else "I couldn't see a face clearly. Please try again."
+                            
+                            # TTS
+                            t_audio = await asyncio.to_thread(tts.text_to_audio_base64, msg, language)
+                            
+                            await manager.send_message({
+                                "type": "result", 
+                                "success": success, 
+                                "message": msg,
+                                "audio": t_audio,
+                                "data": {"intent": "face_train", "name": name}
+                            }, websocket)
+                            continue
 
                     # "Who is this" -> Recognize
                     if "who is this" in command_lower or "who is that" in command_lower:
@@ -502,6 +626,16 @@ async def websocket_endpoint(websocket: WebSocket):
                     fast_patterns = {
                         'screenshot': ('take_screenshot', {}, "Screenshot captured!"),
                         'take a screenshot': ('take_screenshot', {}, "Screenshot captured!"),
+                        # Image memory fast paths
+                        'take a photo and remember': ('take_photo_remember', {}, ""),
+                        'click a photo and remember': ('take_photo_remember', {}, ""),
+                        'capture and remember': ('take_photo_remember', {}, ""),
+                        'save this screenshot': ('take_screenshot_remember', {}, ""),
+                        'screenshot and remember': ('take_screenshot_remember', {}, ""),
+                        'remember this photo': ('take_photo_remember', {}, ""),
+                        'show me the photo of': ('recall_image', {}, ""),
+                        'recall image': ('recall_image', {}, ""),
+                        # Existing patterns
                         'volume up': ('volume_up', {}, "Volume up!"),
                         'louder': ('volume_up', {}, "Louder!"),
                         'volume down': ('volume_down', {}, "Volume down!"),
@@ -539,6 +673,22 @@ async def websocket_endpoint(websocket: WebSocket):
                         action, params, response_text = fast_match
                         print(f"⚡ Fast path: {action}")
                         
+                        # For image memory intents, extract label from text and inject image
+                        if action in ("take_photo_remember", "take_screenshot_remember"):
+                            import re as _re
+                            from datetime import datetime as _dt
+                            m = _re.search(r"(?:as|called|label|named?\s+it)\s+(.+)$", command_lower)
+                            params = dict(params)
+                            params["label"] = m.group(1).strip() if m else _dt.now().strftime("photo_%Y%m%d_%H%M%S")
+                            if action == "take_photo_remember" and image_base64:
+                                params["image_base64"] = image_base64
+                        elif action == "recall_image":
+                            import re as _re
+                            m = _re.search(r"(?:photo|image|picture|screenshot)\s+(?:of|named?|called)\s+(.+)$", command_lower)
+                            params = dict(params)
+                            if m:
+                                params["label"] = m.group(1).strip()
+                        
                         action_result = await process_intent(action, params, language)
                         if not response_text:  # For time/date, use the action result message
                             response_text = action_result.get("message", "Done!")
@@ -570,21 +720,29 @@ async def websocket_endpoint(websocket: WebSocket):
                         continue  # Skip AI processing
                     
                     # Normal AI Brain processing (for complex/conversational commands)
+                    # --- Owner recognition (face, since we have camera frame here) ---
+                    owner_title = _get_owner_title_from_face(image_base64)
+
                     if config.AI_ENABLED and ai_brain.is_available:
                         print(f"🤖 AI processing: '{command_text}'")
-                        # Default AI processing
                         # Fetch relevant memories to provide context (RAG-lite)
                         memories = await db.search_memories(limit=10)
-                        
-                        result = await ai_brain.think(command_text, context_memories=memories)
-                        
+                        # Inject owner context
+                        context = list(memories)
+                        if owner_title == "Sir":
+                            context.insert(0, "User is the Owner (Sir).")
+                        else:
+                            context.insert(0, "User is a Guest.")
+
+                        result = await ai_brain.think(command_text, context_memories=context)
+
                         response_text = result.get("response", "")
                         action = result.get("action")
                         params = result.get("params", {})
                         language = result.get("language", language)
-                        
+
                         print(f"🧠 AI: Action={action}, Params={params}")
-                        
+
                         # Send intent
                         await manager.send_message({
                             "type": "intent",
@@ -592,7 +750,7 @@ async def websocket_endpoint(websocket: WebSocket):
                             "parameters": params,
                             "confidence": 0.95 if action else 0.8
                         }, websocket)
-                        
+
                         # Execute action if available
                         action_result = {"success": True, "message": response_text}
                         if action:
@@ -610,19 +768,22 @@ async def websocket_endpoint(websocket: WebSocket):
                         intent = intent_result["intent"]
                         parameters = intent_result["parameters"]
                         confidence = intent_result["confidence"]
-                        
+
                         print(f"🧠 Pattern: '{command_text}' → {intent}")
-                        
+
                         await manager.send_message({
                             "type": "intent",
                             "intent": intent,
                             "parameters": parameters,
                             "confidence": confidence
                         }, websocket)
-                        
+
                         action_result = await process_intent(intent, parameters, language)
                         response_text = action_result.get("message", "")
-                    
+
+                    # Apply Sir/Guest title to response
+                    response_text = _apply_owner_title(response_text, owner_title)
+
                     # Generate TTS audio (male voice, base64)
                     audio_base64 = ""
                     if response_text:
@@ -775,46 +936,28 @@ async def websocket_endpoint(websocket: WebSocket):
                             # Use AI Brain for understanding
                             if config.AI_ENABLED and ai_brain.is_available:
                                 
-                                # SPEAKER IDENTIFICATION CHECK
-                                sender_title = ""
-                                if speaker_recognizer.is_available:
-                                    # We need to pass raw PCM data, not the stripped one? 
-                                    # Actually we have pcm_data (bytes) already.
-                                    
-                                    # Check if we should enroll (if intent is enrollment)
-                                    # But we don't know intent yet. Simple heuristic:
-                                    if "voice" in text.lower() and ("learn" in text.lower() or "enroll" in text.lower()):
-                                        # Skip verification, let it pass to enrollment intent
-                                        pass
-                                    else:
-                                        verify_result = speaker_recognizer.verify_voice(pcm_data)
-                                        if verify_result["match"]:
-                                            sender_title = "Sir"  # Owner detected
-                                            print(f"🎤 Voice verified: Owner ({verify_result['similarity']:.2f})")
-                                        else:
-                                            sender_title = "Guest" # Not owner
-                                            print(f"🎤 Voice verified: Guest ({verify_result['similarity']:.2f})")
+                                # --- Owner recognition via VOICE (speaker ID) ---
+                                # Also check face if camera is available, use whichever confirms owner
+                                owner_title = _get_owner_title_from_voice(pcm_data)
+                                if not owner_title and image_base64:
+                                    owner_title = _get_owner_title_from_face(image_base64)
 
                                 print(f"🤖 AI processing: '{text}'")
-                                
-                                # Inject context about speaker
+
+                                # Inject context about speaker identity
                                 context_memories = []
-                                if sender_title == "Sir":
+                                if owner_title == "Sir":
                                     context_memories.append("User is the Owner (Sir).")
                                 else:
                                     context_memories.append("User is a Guest.")
-                                    
+
                                 ai_result = await ai_brain.think(text, context_memories=context_memories)
-                                
+
                                 response_text = ai_result.get('response', '')
-                                
-                                # Add "Sir" prefix if applicable and not already present
-                                if sender_title == "Sir" and "sir" not in response_text.lower():
-                                    # Don't add if it's a very short response or if AI already added it
-                                    import random
-                                    if random.random() > 0.3: # 70% chance to add Sir
-                                        response_text = f"{response_text}, Sir."
-                                
+
+                                # Apply Sir title consistently (not randomly)
+                                response_text = _apply_owner_title(response_text, owner_title)
+
                                 action = ai_result.get('action')
                                 params = ai_result.get('params', {})
                                 language = ai_result.get('language', 'en')
@@ -843,6 +986,10 @@ async def websocket_endpoint(websocket: WebSocket):
                                         response_text = f"Failed to learn voice: {enroll_result.get('error')}"
                                         
                                 elif action:
+                                    # Inject webcam frame for photo memory actions
+                                    if action == "take_photo_remember" and image_base64:
+                                        params = dict(params)
+                                        params["image_base64"] = image_base64
                                     action_result = await process_intent(action, params, language)
                                     if action in ("time", "date"):
                                         response_text = action_result.get("message", response_text)
@@ -930,38 +1077,54 @@ async def websocket_endpoint(websocket: WebSocket):
                         }, websocket)
             
             elif message_type == "analyze_frame":
-                # Vision recognition - analyze camera frame
+                # Vision recognition - analyze camera frame using custom EfficientNet-B0 + LSTM model
                 image_base64 = message.get("image", "")
-                
+
                 if image_base64:
                     print("📷 Analyzing camera frame...")
-                    
-                    # Analyze with LLaVA vision model
+
+                    # 1. Run face recognition to identify who is on camera
+                    face_title = _get_owner_title_from_face(image_base64)
+                    try:
+                        from face_memory import face_memory as _fm
+                        recognized_name = _fm.recognize_face(image_base64) if _fm.is_trained else "Unknown"
+                    except Exception:
+                        recognized_name = "Unknown"
+                    is_owner_on_camera = face_title == "Sir"
+
+                    # 2. Scene description via vision model (if available)
                     result = await vision.analyze_image(image_base64)
-                    
+
                     if result["success"]:
                         description = result["description"]
+                        # If owner is on camera, add personalised prefix
+                        if is_owner_on_camera:
+                            description = f"Hello, Sir. {description}" if description else "Hello, Sir."
                         print(f"👁️ Vision: {description}")
-                        
-                        # Generate TTS for the description
+
                         audio_base64 = await asyncio.to_thread(
-                            tts.text_to_audio_base64, 
-                            description, 
+                            tts.text_to_audio_base64,
+                            description,
                             "en"
                         )
-                        
+
                         await manager.send_message({
                             "type": "vision_result",
                             "success": True,
                             "description": description,
-                            "audio": audio_base64
+                            "audio": audio_base64,
+                            "is_owner": is_owner_on_camera,
+                            "recognized_name": recognized_name,
                         }, websocket)
                     else:
+                        # Vision model not available — still send face recognition result
                         await manager.send_message({
                             "type": "vision_result",
                             "success": False,
                             "description": result.get("error", "Vision analysis failed"),
-                            "audio": ""
+                            "audio": "",
+                            "is_owner": is_owner_on_camera,
+                            "recognized_name": recognized_name,
                         }, websocket)
     
     except WebSocketDisconnect:
@@ -1135,6 +1298,100 @@ async def process_intent(intent: str, parameters: dict, language: str = "en") ->
                 "success": True,
                 "message": "Camera closed.",
                 "action": "close_camera"
+            }
+        
+        # ---- Image Memory (PostgreSQL) ----------------------------------------
+        elif intent == "take_photo_remember":
+            """
+            Capture a webcam photo and remember it.
+            Expects 'label' in parameters and 'image_base64' in the WS message
+            (injected below before calling process_intent).
+            """
+            label = parameters.get("label", "untitled")
+            image_b64 = parameters.get("image_base64", "")
+            if not image_b64:
+                return {
+                    "success": False,
+                    "message": "I can't see anything. Please enable the camera so I can capture a photo."
+                }
+            # Generate AI description (if vision model is available)
+            description = ""
+            if vision.is_available:
+                vision_result = await vision.analyze_image(image_b64)
+                description = vision_result.get("description", "")
+            # Save to PostgreSQL
+            row_id = await image_store.save_image(
+                label=label,
+                image_base64=image_b64,
+                description=description,
+                source="webcam",
+            )
+            if row_id:
+                msg = f"Got it! I've remembered this photo as '{label}'."
+                if description:
+                    msg += f" It looks like: {description}"
+                return {"success": True, "message": msg, "image_id": row_id}
+            return {"success": False, "message": "Sorry, I couldn't save the photo. Check the PostgreSQL connection."}
+        
+        elif intent == "take_screenshot_remember":
+            """
+            Take a screenshot and save it to PostgreSQL.
+            """
+            import base64 as _base64
+            label = parameters.get("label", "untitled")
+            # Take screenshot via device_controller
+            ss_result = device_controller.take_screenshot()
+            if not ss_result.get("success"):
+                return {"success": False, "message": "Couldn't take a screenshot."}
+            # device_controller returns path; read and encode
+            ss_path = ss_result.get("path", "")
+            try:
+                if ss_path:
+                    with open(ss_path, "rb") as f:
+                        image_b64 = _base64.b64encode(f.read()).decode()
+                else:
+                    # Fallback: take screenshot directly with pyautogui
+                    import pyautogui
+                    from io import BytesIO
+                    img = pyautogui.screenshot()
+                    buf = BytesIO()
+                    img.save(buf, format="PNG")
+                    image_b64 = _base64.b64encode(buf.getvalue()).decode()
+                
+                row_id = await image_store.save_screenshot(
+                    image_base64=image_b64,
+                    label=label,
+                )
+                if row_id:
+                    return {"success": True, "message": f"Screenshot saved as '{label}'!", "screenshot_id": row_id}
+                return {"success": False, "message": "Screenshot taken but couldn't save to database."}
+            except Exception as e:
+                return {"success": False, "message": f"Error saving screenshot: {e}"}
+        
+        elif intent == "recall_image":
+            """
+            Retrieve a saved image by label and describe it to the user.
+            """
+            label = parameters.get("label", "")
+            if not label:
+                return {"success": False, "message": "Please tell me which photo to recall. For example: 'show me the photo of my desk'."}
+            
+            result = await image_store.get_image(label)
+            if not result:
+                # Try screenshots too
+                result = await image_store.get_screenshot(label)
+            
+            if result:
+                desc = result.get("description") or "no description available"
+                taken = result.get("taken_at", "")[:10]  # date only
+                return {
+                    "success": True,
+                    "message": f"Found it! I saved '{result['label']}' on {taken}. It shows: {desc}",
+                    "image_data": result,
+                }
+            return {
+                "success": False,
+                "message": f"I don't have any saved photo matching '{label}'. Try taking one first!",
             }
         
         # Help & Greeting

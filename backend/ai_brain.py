@@ -50,31 +50,35 @@ def _load_models():
 
 # --- Response templates -------------------------------------------------------
 RESPONSE_TEMPLATES = {
-    "open_app":        ("Opening {app_name}!", "open_app"),
-    "close_app":       ("Closing {app_name}!", "close_app"),
-    "volume_up":       ("Turning up the volume!", "volume_up"),
-    "volume_down":     ("Lowering the volume!", "volume_down"),
-    "mute":            ("Toggling mute!", "mute"),
-    "brightness_up":   ("Increasing brightness!", "brightness_up"),
-    "brightness_down": ("Decreasing brightness!", "brightness_down"),
-    "switch_tab":      ("Switching tab!", "switch_tab"),
-    "screenshot":      ("Taking a screenshot!", "take_screenshot"),
-    "shutdown":        ("Shutting down the system!", "shutdown"),
-    "restart":         ("Restarting the system!", "restart"),
-    "time":            ("Checking the time!", "time"),
-    "date":            ("Checking the date!", "date"),
-    "system_info":     ("Fetching system info!", "system_info"),
-    "web_search":      ("Searching for that!", "web_search"),
-    "create_file":     ("Creating the file!", "create_file"),
-    "delete_file":     ("Deleting the file!", "delete_file"),
-    "list_files":      ("Listing files!", "list_files"),
-    "type_text":       ("Typing that for you!", "type_text"),
-    "press_key":       ("Pressing the key!", "press_key"),
-    "greeting":        ("Hi there! How can I help?", None),
-    "help":            ("Here's what I can do: open apps, control volume, search the web, and more!", None),
-    "enroll_voice":    ("Starting voice enrollment. Please speak clearly.", "enroll_voice"),
-    "search_files":    ("Searching for files!", "search_files"),
-    "unknown":         ("I'm here to help! Try saying 'open notepad' or 'what time is it'.", None),
+    "open_app":                ("Opening {app_name}!", "open_app"),
+    "close_app":               ("Closing {app_name}!", "close_app"),
+    "volume_up":               ("Turning up the volume!", "volume_up"),
+    "volume_down":             ("Lowering the volume!", "volume_down"),
+    "mute":                    ("Toggling mute!", "mute"),
+    "brightness_up":           ("Increasing brightness!", "brightness_up"),
+    "brightness_down":         ("Decreasing brightness!", "brightness_down"),
+    "switch_tab":              ("Switching tab!", "switch_tab"),
+    "screenshot":              ("Taking a screenshot!", "take_screenshot"),
+    "shutdown":                ("Shutting down the system!", "shutdown"),
+    "restart":                 ("Restarting the system!", "restart"),
+    "time":                    ("Checking the time!", "time"),
+    "date":                    ("Checking the date!", "date"),
+    "system_info":             ("Fetching system info!", "system_info"),
+    "web_search":              ("Searching for that!", "web_search"),
+    "create_file":             ("Creating the file!", "create_file"),
+    "delete_file":             ("Deleting the file!", "delete_file"),
+    "list_files":              ("Listing files!", "list_files"),
+    "type_text":               ("Typing that for you!", "type_text"),
+    "press_key":               ("Pressing the key!", "press_key"),
+    "greeting":                ("Hi there! How can I help?", None),
+    "help":                    ("Here's what I can do: open apps, control volume, search the web, and more!", None),
+    "enroll_voice":            ("Starting voice enrollment. Please speak clearly.", "enroll_voice"),
+    "search_files":            ("Searching for files!", "search_files"),
+    # --- Image memory intents (stored in PostgreSQL) ---
+    "take_photo_remember":     ("Got it! I'll capture and remember this photo.", "take_photo_remember"),
+    "take_screenshot_remember":("Saving this screenshot to my memory!", "take_screenshot_remember"),
+    "recall_image":            ("Let me look that up for you!", "recall_image"),
+    "unknown":                 ("I'm here to help! Try saying 'open notepad' or 'what time is it'.", None),
 }
 
 # Intent -> action name mapping (classifier intent -> backend action key)
@@ -138,6 +142,22 @@ def _extract_params(intent: str, text: str) -> Dict:
         m = re.search(r"(?:press|hit|push|tap)\s+(?:the\s+)?(.+?)(?:\s+key)?$", text_lower)
         if m:
             params["key"] = m.group(1).strip()
+
+    elif intent in ("take_photo_remember", "take_screenshot_remember"):
+        # Extract label: "take a photo and remember this as my desk" -> "my desk"
+        m = re.search(r"(?:as|called|label|name[d]?\s+it)\s+(.+)$", text_lower)
+        if m:
+            params["label"] = m.group(1).strip()
+        else:
+            # Fallback: use timestamp-style label
+            from datetime import datetime
+            params["label"] = datetime.now().strftime("photo_%Y%m%d_%H%M%S")
+
+    elif intent == "recall_image":
+        # "show me the photo of my desk" -> label="my desk"
+        m = re.search(r"(?:photo|image|picture|screenshot)\s+(?:of|named?|called)\s+(.+)$", text_lower)
+        if m:
+            params["label"] = m.group(1).strip()
 
     return params
 
