@@ -4,12 +4,21 @@ Text-to-Speech module using pyttsx3 (offline)
 import pyttsx3
 import threading
 from queue import Queue
-import config
-import base64
-import os
-import uuid
+import pyttsx3
 import tempfile
+import os
+import sys
+import base64
 import multiprocessing
+import config
+import uuid
+
+# Prevent Windows CP1252 terminal UnicodeEncodeError on print statements
+if hasattr(sys.stdout, 'reconfigure'):
+    try:
+        sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+    except Exception:
+        pass
 
 def _generate_audio_file_process(text, filename, rate, volume):
     """

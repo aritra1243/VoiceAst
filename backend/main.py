@@ -2,6 +2,16 @@
 FastAPI main server for VoiceAst
 Handles WebSocket connections and REST API endpoints
 """
+import sys
+import os
+
+# Prevent Windows CP1252 terminal UnicodeEncodeError on print statements
+if hasattr(sys.stdout, 'reconfigure'):
+    try:
+        sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+    except Exception:
+        pass
+
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
