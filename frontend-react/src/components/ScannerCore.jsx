@@ -1,489 +1,320 @@
-import { useEffect, useRef } from 'react';
-import * as THREE from 'three';
+import { useEffect, useRef, useState } from 'react';
 
 /* =========================================================================
-   IRON MAN JARVIS 3D HELMET & ARC REACTOR CORE (WebGL via Three.js)
-   Renders a 3D cybernetic Iron Man bust with glowing cyan eyes,
-   an Arc Reactor chest core, holographic wireframes, and animated talking jaw.
+   IRON MAN JARVIS HOLOGRAPHIC BLUEPRINT 3D HEAD & ARC REACTOR
+   Renders a pixel-perfect holographic wireframe vector matching the Iron Man
+   blueprint schematic with glowing cyan helmet contour, glowing eye slits,
+   red collar accent lines, glowing Arc Reactor, and animated talking jaw.
    ========================================================================= */
 
 export default function ScannerCore({ isListening, isTalking = false, wsStatus }) {
   const containerRef = useRef(null);
 
-  // Smooth animation targets
-  const stateRef = useRef({
-    isTalking,
-    isListening,
-    mouseX: 0,
-    mouseY: 0,
-    targetRotationX: 0,
-    targetRotationY: 0,
-  });
+  // Mouse tracking for subtle 3D perspective tilt
+  const [tilt, setTilt] = useState({ rx: 0, ry: 0 });
 
-  // Keep stateRef up to date
-  useEffect(() => {
-    stateRef.current.isTalking = isTalking;
-    stateRef.current.isListening = isListening;
-  }, [isTalking, isListening]);
-
-  // Track mouse for 3D head look-at
   useEffect(() => {
     const handleMouseMove = (e) => {
       const cx = window.innerWidth / 2;
       const cy = window.innerHeight / 2;
-      stateRef.current.mouseX = (e.clientX - cx) / cx; // -1 to +1
-      stateRef.current.mouseY = (e.clientY - cy) / cy;
+      const rx = ((e.clientY - cy) / cy) * -10; // max -10 to +10 deg
+      const ry = ((e.clientX - cx) / cx) * 12;  // max -12 to +12 deg
+      setTilt({ rx, ry });
     };
     window.addEventListener('mousemove', handleMouseMove);
     return () => window.removeEventListener('mousemove', handleMouseMove);
   }, []);
 
+  // Jaw animation when talking
+  const [jawOffset, setJawOffset] = useState(0);
+
   useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-
-    const width = 340;
-    const height = 380;
-
-    // ── 1. Scene, Camera, Renderer ──
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 100);
-    camera.position.set(0, 0, 7.5);
-
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    renderer.setSize(width, height);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.shadowMap.enabled = true;
-    container.appendChild(renderer.domElement);
-
-    // ── 2. Color Palette ──
-    const CYAN = 0x00f7ff;
-    const AMBER = 0xffaa00;
-    const DARK_STEEL = 0x0a1628;
-    const ARMOR_BLUE = 0x0d2240;
-    const RED_ACCENT = 0xff2255;
-
-    // ── 3. Lights ──
-    const ambientLight = new THREE.AmbientLight(0x051525, 2.5);
-    scene.add(ambientLight);
-
-    const mainLight = new THREE.DirectionalLight(CYAN, 3.0);
-    mainLight.position.set(5, 8, 5);
-    scene.add(mainLight);
-
-    const rimLight = new THREE.DirectionalLight(RED_ACCENT, 2.0);
-    rimLight.position.set(-5, -2, -3);
-    scene.add(rimLight);
-
-    // Eye glow point light
-    const eyeLight = new THREE.PointLight(CYAN, 4.0, 4);
-    eyeLight.position.set(0, 0.8, 1.2);
-    scene.add(eyeLight);
-
-    // Arc reactor glow light
-    const arcLight = new THREE.PointLight(CYAN, 6.0, 5);
-    arcLight.position.set(0, -1.8, 1.5);
-    scene.add(arcLight);
-
-    // ── 4. Main 3D Root Group ──
-    const rootGroup = new THREE.Group();
-    scene.add(rootGroup);
-
-    // ── 5. Materials ──
-    const metalMaterial = new THREE.MeshStandardMaterial({
-      color: DARK_STEEL,
-      roughness: 0.35,
-      metalness: 0.85,
-    });
-
-    const plateMaterial = new THREE.MeshStandardMaterial({
-      color: ARMOR_BLUE,
-      roughness: 0.25,
-      metalness: 0.9,
-    });
-
-    const glowCyanMaterial = new THREE.MeshBasicMaterial({
-      color: CYAN,
-      transparent: true,
-      opacity: 0.95,
-    });
-
-    const wireCyanMaterial = new THREE.MeshBasicMaterial({
-      color: CYAN,
-      wireframe: true,
-      transparent: true,
-      opacity: 0.35,
-    });
-
-    const wireRedMaterial = new THREE.MeshBasicMaterial({
-      color: RED_ACCENT,
-      wireframe: true,
-      transparent: true,
-      opacity: 0.45,
-    });
-
-    // ── 6. Build Iron Man Helmet ──
-    const helmetGroup = new THREE.Group();
-    helmetGroup.position.set(0, 0.4, 0);
-    rootGroup.add(helmetGroup);
-
-    // Upper Cranium (Dome)
-    const domeGeo = new THREE.SphereGeometry(1.0, 32, 16, 0, Math.PI * 2, 0, Math.PI * 0.55);
-    domeGeo.scale(0.92, 1.1, 1.05);
-    const craniumMesh = new THREE.Mesh(domeGeo, metalMaterial);
-    helmetGroup.add(craniumMesh);
-
-    // Cranium Wireframe Overlay
-    const craniumWire = new THREE.Mesh(domeGeo, wireCyanMaterial);
-    craniumWire.scale.set(1.01, 1.01, 1.01);
-    helmetGroup.add(craniumWire);
-
-    // Brow / Forehead Plate
-    const browGeo = new THREE.BoxGeometry(1.65, 0.35, 0.4);
-    const browMesh = new THREE.Mesh(browGeo, plateMaterial);
-    browMesh.position.set(0, 0.85, 0.85);
-    browMesh.rotation.x = -0.25;
-    helmetGroup.add(browMesh);
-
-    // Brow Central Crest
-    const crestGeo = new THREE.ConeGeometry(0.2, 0.6, 4);
-    const crestMesh = new THREE.Mesh(crestGeo, glowCyanMaterial);
-    crestMesh.position.set(0, 1.15, 0.88);
-    crestMesh.rotation.x = 0.2;
-    helmetGroup.add(crestMesh);
-
-    // Cheeks & Temple Side Plates
-    [-1, 1].forEach((side) => {
-      const cheekGeo = new THREE.BoxGeometry(0.45, 0.8, 0.7);
-      const cheekMesh = new THREE.Mesh(cheekGeo, plateMaterial);
-      cheekMesh.position.set(side * 0.82, 0.35, 0.55);
-      cheekMesh.rotation.y = side * -0.3;
-      cheekMesh.rotation.z = side * 0.15;
-      helmetGroup.add(cheekMesh);
-
-      // Temple Wireframe Accent
-      const templeWire = new THREE.Mesh(cheekGeo, wireRedMaterial);
-      templeWire.position.copy(cheekMesh.position);
-      templeWire.rotation.copy(cheekMesh.rotation);
-      templeWire.scale.set(1.03, 1.03, 1.03);
-      helmetGroup.add(templeWire);
-    });
-
-    // Nose Bridge
-    const noseGeo = new THREE.ConeGeometry(0.18, 0.6, 4);
-    const noseMesh = new THREE.Mesh(noseGeo, metalMaterial);
-    noseMesh.position.set(0, 0.45, 1.02);
-    noseMesh.rotation.x = 0.3;
-    helmetGroup.add(noseMesh);
-
-    // ── 7. GLOWING CYAN EYES ──
-    const eyeGroup = new THREE.Group();
-    helmetGroup.add(eyeGroup);
-
-    [-0.38, 0.38].forEach((xPos) => {
-      // Slanted Iron Man eye shape using BoxGeometry scaled & rotated
-      const eyeGeo = new THREE.BoxGeometry(0.42, 0.09, 0.12);
-      const eyeMesh = new THREE.Mesh(eyeGeo, glowCyanMaterial);
-      eyeMesh.position.set(xPos, 0.62, 0.96);
-      eyeMesh.rotation.z = (xPos > 0 ? -1 : 1) * 0.22;
-      eyeGroup.add(eyeMesh);
-
-      // Outer Eye Glow Frame
-      const eyeFrameGeo = new THREE.BoxGeometry(0.48, 0.14, 0.08);
-      const eyeFrameMesh = new THREE.Mesh(eyeFrameGeo, metalMaterial);
-      eyeFrameMesh.position.set(xPos, 0.62, 0.94);
-      eyeFrameMesh.rotation.z = eyeMesh.rotation.z;
-      eyeGroup.add(eyeFrameMesh);
-    });
-
-    // ── 8. ANIMATED JAW & MOUTH FACEPLATE ──
-    const jawGroup = new THREE.Group();
-    jawGroup.position.set(0, 0.1, 0.4); // Pivot point for mouth opening
-    helmetGroup.add(jawGroup);
-
-    // Lower Chin Plate
-    const chinShape = new THREE.CylinderGeometry(0.68, 0.45, 0.75, 6);
-    const chinMesh = new THREE.Mesh(chinShape, plateMaterial);
-    chinMesh.position.set(0, -0.4, 0.45);
-    chinMesh.rotation.y = Math.PI / 6;
-    jawGroup.add(chinMesh);
-
-    // Chin Wireframe
-    const chinWire = new THREE.Mesh(chinShape, wireCyanMaterial);
-    chinWire.position.copy(chinMesh.position);
-    chinWire.rotation.copy(chinMesh.rotation);
-    chinWire.scale.set(1.02, 1.02, 1.02);
-    jawGroup.add(chinWire);
-
-    // Mouth Speaker Grill (glowing slot underneath upper mask)
-    const mouthGrillGeo = new THREE.BoxGeometry(0.65, 0.1, 0.15);
-    const mouthGrillMesh = new THREE.Mesh(mouthGrillGeo, glowCyanMaterial);
-    mouthGrillMesh.position.set(0, -0.08, 0.55);
-    jawGroup.add(mouthGrillMesh);
-
-    // ── 9. NECK & COLLAR (RED ACCENT BLUEPRINT) ──
-    const neckGroup = new THREE.Group();
-    neckGroup.position.set(0, -0.85, 0);
-    rootGroup.add(neckGroup);
-
-    const neckGeo = new THREE.CylinderGeometry(0.55, 0.7, 0.6, 12);
-    const neckMesh = new THREE.Mesh(neckGeo, metalMaterial);
-    neckGroup.add(neckMesh);
-
-    const neckWire = new THREE.Mesh(neckGeo, wireRedMaterial);
-    neckWire.scale.set(1.03, 1.03, 1.03);
-    neckGroup.add(neckWire);
-
-    // Collar Collarbone Ribs
-    [-0.55, 0.55].forEach((xSide) => {
-      const ribGeo = new THREE.TorusGeometry(0.4, 0.04, 8, 16, Math.PI);
-      const ribMesh = new THREE.Mesh(ribGeo, wireRedMaterial);
-      ribMesh.position.set(xSide * 0.6, -0.2, 0.3);
-      ribMesh.rotation.z = xSide * 0.8;
-      neckGroup.add(ribMesh);
-    });
-
-    // ── 10. CHEST ARMOR BUST & ARC REACTOR ──
-    const chestGroup = new THREE.Group();
-    chestGroup.position.set(0, -1.8, 0);
-    rootGroup.add(chestGroup);
-
-    // Main Chest Plate
-    const chestGeo = new THREE.BoxGeometry(2.4, 1.1, 1.2);
-    const chestMesh = new THREE.Mesh(chestGeo, metalMaterial);
-    chestGroup.add(chestMesh);
-
-    const chestWire = new THREE.Mesh(chestGeo, wireCyanMaterial);
-    chestWire.scale.set(1.01, 1.01, 1.01);
-    chestGroup.add(chestWire);
-
-    // Shoulder Pads
-    [-1.4, 1.4].forEach((side) => {
-      const shoulderGeo = new THREE.SphereGeometry(0.55, 12, 12);
-      shoulderGeo.scale(1.2, 0.7, 1.0);
-      const shoulderMesh = new THREE.Mesh(shoulderGeo, plateMaterial);
-      shoulderMesh.position.set(side, 0.35, 0);
-      chestGroup.add(shoulderMesh);
-    });
-
-    // ── ARC REACTOR ──
-    const arcGroup = new THREE.Group();
-    arcGroup.position.set(0, 0.05, 0.62);
-    chestGroup.add(arcGroup);
-
-    // Outer Ring
-    const outerRingGeo = new THREE.TorusGeometry(0.38, 0.04, 16, 32);
-    const outerRingMesh = new THREE.Mesh(outerRingGeo, glowCyanMaterial);
-    arcGroup.add(outerRingMesh);
-
-    // Inner Ring
-    const innerRingGeo = new THREE.TorusGeometry(0.24, 0.03, 16, 24);
-    const innerRingMesh = new THREE.Mesh(innerRingGeo, glowCyanMaterial);
-    arcGroup.add(innerRingMesh);
-
-    // Core Glowing Sphere
-    const coreGeo = new THREE.SphereGeometry(0.16, 16, 16);
-    const coreMesh = new THREE.Mesh(coreGeo, glowCyanMaterial);
-    arcGroup.add(coreMesh);
-
-    // Arc Reactor Vanes / Triangular Nodes
-    for (let i = 0; i < 10; i++) {
-      const angle = (i * Math.PI * 2) / 10;
-      const vaneGeo = new THREE.BoxGeometry(0.04, 0.12, 0.04);
-      const vaneMesh = new THREE.Mesh(vaneGeo, wireCyanMaterial);
-      vaneMesh.position.set(Math.cos(angle) * 0.31, Math.sin(angle) * 0.31, 0);
-      vaneMesh.rotation.z = angle;
-      arcGroup.add(vaneMesh);
+    if (!isTalking) {
+      setJawOffset(0);
+      return;
     }
+    let frame = 0;
+    const interval = setInterval(() => {
+      frame++;
+      // Open jaw down by 0 to 14px while talking
+      setJawOffset(Math.abs(Math.sin(frame * 0.25)) * 14);
+    }, 35);
+    return () => clearInterval(interval);
+  }, [isTalking]);
 
-    // ── 11. HOLOGRAPHIC BACKGROUND PARTICLES ──
-    const particleCount = 120;
-    const particleGeo = new THREE.BufferGeometry();
-    const posArray = new Float32Array(particleCount * 3);
-
-    for (let i = 0; i < particleCount * 3; i += 3) {
-      posArray[i] = (Math.random() - 0.5) * 12;
-      posArray[i + 1] = (Math.random() - 0.5) * 12;
-      posArray[i + 2] = (Math.random() - 0.5) * 8 - 2;
-    }
-    particleGeo.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
-
-    const particleMat = new THREE.PointsMaterial({
-      size: 0.04,
-      color: CYAN,
-      transparent: true,
-      opacity: 0.6,
-    });
-    const particles = new THREE.Points(particleGeo, particleMat);
-    scene.add(particles);
-
-    // ── 12. ANIMATION LOOP ──
-    let animationFrameId;
-    let clock = new THREE.Clock();
-
-    const animate = () => {
-      animationFrameId = requestAnimationFrame(animate);
-      const elapsedTime = clock.getElapsedTime();
-      const state = stateRef.current;
-
-      // Color shift when listening / processing
-      const targetColor = state.isListening ? AMBER : CYAN;
-      glowCyanMaterial.color.setHex(targetColor);
-      eyeLight.color.setHex(targetColor);
-      arcLight.color.setHex(targetColor);
-
-      // Smooth Head Tracking to Mouse
-      state.targetRotationY += (state.mouseX * 0.45 - state.targetRotationY) * 0.08;
-      state.targetRotationX += (state.mouseY * 0.25 - state.targetRotationX) * 0.08;
-
-      rootGroup.rotation.y = state.targetRotationY;
-      rootGroup.rotation.x = state.targetRotationX;
-
-      // Subtle Idle Floating Bob
-      rootGroup.position.y = Math.sin(elapsedTime * 1.8) * 0.08;
-      helmetGroup.rotation.z = Math.sin(elapsedTime * 1.2) * 0.02;
-
-      // ── TALKING JAW ANIMATION ──
-      if (state.isTalking) {
-        // Dynamic jaw opening (rotates jaw group on X axis)
-        const mouthOpen = Math.abs(Math.sin(elapsedTime * 14)) * 0.28 + 0.05;
-        jawGroup.rotation.x = mouthOpen;
-
-        // Pulse intensity of eyes and arc reactor
-        const pulse = 4.0 + Math.sin(elapsedTime * 20) * 2.5;
-        eyeLight.intensity = pulse;
-        arcLight.intensity = pulse + 2.0;
-
-        // Mouth grill brightness boost
-        mouthGrillMesh.scale.set(1.0 + mouthOpen * 0.5, 1.0 + mouthOpen * 2.0, 1.0);
-      } else {
-        // Reset jaw to closed position
-        jawGroup.rotation.x += (0 - jawGroup.rotation.x) * 0.15;
-        eyeLight.intensity = 3.5;
-        arcLight.intensity = 5.0;
-        mouthGrillMesh.scale.set(1.0, 1.0, 1.0);
-      }
-
-      // Rotate Arc Reactor inner rings slowly
-      arcGroup.rotation.z = elapsedTime * 0.8;
-      outerRingMesh.rotation.z = -elapsedTime * 0.5;
-
-      // Slow background particle drift
-      particles.rotation.y = elapsedTime * 0.05;
-
-      renderer.render(scene, camera);
-    };
-
-    animate();
-
-    // ── Cleanup ──
-    return () => {
-      cancelAnimationFrame(animationFrameId);
-      if (container && renderer.domElement) {
-        container.removeChild(renderer.domElement);
-      }
-      renderer.dispose();
-      scene.clear();
-    };
-  }, []);
-
-  const activeColorStr = isListening ? '#ffaa00' : '#00f7ff';
+  // Color theme: Amber when listening, Cyan when standby/speaking
+  const cyan = '#00f7ff';
+  const amber = '#ffaa00';
+  const activeColor = isListening ? amber : cyan;
+  const redAccent = '#ff2255';
 
   return (
-    <div className="flex flex-col items-center justify-center gap-2 select-none">
-
-      {/* ── Cyber Header Tag ── */}
+    <div className="flex flex-col items-center justify-center select-none py-2">
+      {/* ── Holographic 3D Viewport ── */}
       <div
-        style={{
-          fontFamily: 'Orbitron, monospace',
-          fontSize: 9,
-          letterSpacing: '0.35em',
-          color: activeColorStr,
-          textShadow: `0 0 10px ${activeColorStr}`,
-          textTransform: 'uppercase',
-        }}
-      >
-        MARK-VII · JARVIS 3D NEURAL INTERFACE
-      </div>
-
-      {/* ── 3D Canvas Container with Hologram Blueprint Border ── */}
-      <div
+        ref={containerRef}
         className="relative flex items-center justify-center rounded-2xl overflow-hidden"
         style={{
-          width: 340,
-          height: 380,
-          background: 'radial-gradient(circle at center, rgba(0,25,50,0.4) 0%, rgba(2,8,18,0.85) 80%)',
-          border: `1px solid ${activeColorStr}33`,
-          boxShadow: `0 0 25px ${activeColorStr}22, inset 0 0 40px rgba(0,10,25,0.8)`,
+          width: 360,
+          height: 420,
+          perspective: 1000,
+          background: 'radial-gradient(circle at center, rgba(0,25,50,0.4) 0%, rgba(2,6,16,0.92) 85%)',
+          border: `1px solid ${activeColor}33`,
+          boxShadow: `0 0 30px ${activeColor}22, inset 0 0 50px rgba(0,10,25,0.9)`,
         }}
       >
-        {/* Corner Brackets */}
-        <div className="absolute top-2 left-2 w-4 h-4 border-t-2 border-l-2" style={{ borderColor: activeColorStr }} />
-        <div className="absolute top-2 right-2 w-4 h-4 border-t-2 border-r-2" style={{ borderColor: activeColorStr }} />
-        <div className="absolute bottom-2 left-2 w-4 h-4 border-b-2 border-l-2" style={{ borderColor: activeColorStr }} />
-        <div className="absolute bottom-2 right-2 w-4 h-4 border-b-2 border-r-2" style={{ borderColor: activeColorStr }} />
-
-        {/* Blueprint Grid Lines in Background */}
+        {/* Hologram Blueprint Grid */}
         <div
           className="absolute inset-0 pointer-events-none opacity-20"
           style={{
-            backgroundImage: `linear-gradient(${activeColorStr}22 1px, transparent 1px), linear-gradient(90deg, ${activeColorStr}22 1px, transparent 1px)`,
-            backgroundSize: '20px 20px',
+            backgroundImage: `linear-gradient(${activeColor}22 1px, transparent 1px), linear-gradient(90deg, ${activeColor}22 1px, transparent 1px)`,
+            backgroundSize: '24px 24px',
           }}
         />
 
-        {/* Three.js Canvas Mount */}
-        <div ref={containerRef} className="relative z-10" />
+        {/* Outer Corner Frame Brackets */}
+        <div className="absolute top-3 left-3 w-4 h-4 border-t-2 border-l-2" style={{ borderColor: activeColor }} />
+        <div className="absolute top-3 right-3 w-4 h-4 border-t-2 border-r-2" style={{ borderColor: activeColor }} />
+        <div className="absolute bottom-3 left-3 w-4 h-4 border-b-2 border-l-2" style={{ borderColor: activeColor }} />
+        <div className="absolute bottom-3 right-3 w-4 h-4 border-b-2 border-r-2" style={{ borderColor: activeColor }} />
 
-        {/* Status Overlay Badge */}
+        {/* ── 3D Tilting Hologram Group ── */}
         <div
-          className="absolute bottom-3 font-orbitron text-[9px] tracking-[0.25em] px-3 py-1 rounded-full"
+          className="relative transition-transform duration-100 ease-out"
           style={{
-            background: 'rgba(0,15,35,0.75)',
-            border: `1px solid ${activeColorStr}66`,
-            color: activeColorStr,
-            textShadow: `0 0 8px ${activeColorStr}`,
+            width: 320,
+            height: 380,
+            transformStyle: 'preserve-3d',
+            transform: `rotateX(${tilt.rx}deg) rotateY(${tilt.ry}deg)`,
+            filter: `drop-shadow(0 0 12px ${activeColor}aa) drop-shadow(0 0 25px ${activeColor}44)`,
           }}
         >
-          {isTalking
-            ? '◉ JARVIS SPEAKING'
-            : isListening
-              ? '◎ LISTENING...'
-              : wsStatus === 'online'
-                ? '◎ SYSTEM ONLINE'
-                : '⊘ OFFLINE'}
+          <svg
+            width="320"
+            height="380"
+            viewBox="0 0 320 380"
+            className="w-full h-full overflow-visible"
+          >
+            <defs>
+              {/* Eye Glow Radial Gradient */}
+              <radialGradient id="eyeGlow" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stopColor={activeColor} stopOpacity="1" />
+                <stop offset="50%" stopColor={activeColor} stopOpacity="0.8" />
+                <stop offset="100%" stopColor={activeColor} stopOpacity="0" />
+              </radialGradient>
+              {/* Arc Reactor Glow Gradient */}
+              <radialGradient id="arcGlow" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stopColor="#ffffff" stopOpacity="1" />
+                <stop offset="40%" stopColor={activeColor} stopOpacity="0.9" />
+                <stop offset="100%" stopColor={activeColor} stopOpacity="0" />
+              </radialGradient>
+            </defs>
+
+            {/* =========================================================
+               IRON MAN HELMET & SUIT WIREFRAME CONTOURS (Exact Schematic)
+               ========================================================= */}
+
+            {/* ── 1. HELMET UPPER CRANIUM (CYAN CONTOUR) ── */}
+            <path
+              d="
+                M 160,30
+                C 115,30 95,55 95,90
+                L 95,135
+                C 95,145 105,152 110,155
+                L 160,165
+                L 210,155
+                C 215,152 225,145 225,135
+                L 225,90
+                C 225,55 205,30 160,30 Z
+              "
+              fill="none"
+              stroke={activeColor}
+              strokeWidth="1.8"
+            />
+
+            {/* Forehead Ridge / Crest Detail Lines */}
+            <path
+              d="M 125,48 L 160,62 L 195,48"
+              fill="none"
+              stroke={activeColor}
+              strokeWidth="1.2"
+              opacity="0.8"
+            />
+            <line x1="160" y1="30" x2="160" y2="62" stroke={activeColor} strokeWidth="1.2" opacity="0.8" />
+
+            {/* Brow Line Contour */}
+            <path
+              d="M 100,88 L 135,100 L 160,94 L 185,100 L 220,88"
+              fill="none"
+              stroke={activeColor}
+              strokeWidth="1.5"
+            />
+
+            {/* Cheekbone Side Contours */}
+            <path d="M 98,110 L 118,140 L 128,145" fill="none" stroke={activeColor} strokeWidth="1.2" opacity="0.75" />
+            <path d="M 222,110 L 202,140 L 192,145" fill="none" stroke={activeColor} strokeWidth="1.2" opacity="0.75" />
+
+            {/* ── 2. GLOWING EYE SLITS ── */}
+            {/* Left Eye */}
+            <path
+              d="M 112,106 L 142,112 L 144,116 L 115,112 Z"
+              fill={activeColor}
+              stroke={activeColor}
+              strokeWidth="1"
+              style={{ filter: isTalking ? `drop-shadow(0 0 8px ${activeColor})` : `drop-shadow(0 0 4px ${activeColor})` }}
+            />
+            {/* Right Eye */}
+            <path
+              d="M 208,106 L 178,112 L 176,116 L 205,112 Z"
+              fill={activeColor}
+              stroke={activeColor}
+              strokeWidth="1"
+              style={{ filter: isTalking ? `drop-shadow(0 0 8px ${activeColor})` : `drop-shadow(0 0 4px ${activeColor})` }}
+            />
+
+            {/* Nose Ridge Detail */}
+            <path d="M 160,94 L 155,124 L 160,130 L 165,124 Z" fill="none" stroke={activeColor} strokeWidth="1.2" opacity="0.85" />
+
+            {/* ── 3. ANIMATED TALKING LOWER JAW ── */}
+            <g style={{ transform: `translateY(${jawOffset}px)`, transition: 'transform 0.04s ease-out' }}>
+              {/* Lower Jawline Contour */}
+              <path
+                d="
+                  M 120,152
+                  L 125,178
+                  L 142,192
+                  L 160,196
+                  L 178,192
+                  L 195,178
+                  L 200,152
+                  L 160,165 Z
+                "
+                fill="rgba(0,15,30,0.6)"
+                stroke={activeColor}
+                strokeWidth="1.8"
+              />
+              {/* Chin Triangular Lines */}
+              <path d="M 142,192 L 160,172 L 178,192" fill="none" stroke={activeColor} strokeWidth="1.2" opacity="0.75" />
+              <line x1="160" y1="172" x2="160" y2="196" stroke={activeColor} strokeWidth="1.2" opacity="0.75" />
+
+              {/* Mouth Slot / Speaker Vent Glow */}
+              <line
+                x1="138" y1="162" x2="182" y2="162"
+                stroke={activeColor}
+                strokeWidth={isTalking ? "3" : "1.5"}
+                opacity={isTalking ? 1 : 0.6}
+              />
+            </g>
+
+            {/* ── 4. COLLAR & NECK (RED WIREFRAME ACCENTS) ── */}
+            {/* Neck Cylindrical Wireframe Lines */}
+            <path d="M 132,198 L 130,225 L 190,225 L 188,198" fill="none" stroke={redAccent} strokeWidth="1.4" opacity="0.85" />
+            <path d="M 130,212 L 190,212" stroke={redAccent} strokeWidth="1.2" opacity="0.75" />
+
+            {/* Red Collar Joint Ribs */}
+            <path d="M 138,202 L 148,225" stroke={redAccent} strokeWidth="1.2" opacity="0.8" />
+            <path d="M 182,202 L 172,225" stroke={redAccent} strokeWidth="1.2" opacity="0.8" />
+            <circle cx="160" cy="208" r="3" fill={redAccent} opacity="0.9" />
+
+            {/* ── 5. SHOULDERS & CHEST CONTOUR ── */}
+            {/* Left & Right Shoulder Outline (Cyan Blueprint) */}
+            <path
+              d="
+                M 60,265
+                C 85,245 110,230 130,225
+                L 190,225
+                C 210,230 235,245 260,265
+                L 275,310
+                L 245,340
+                L 160,345
+                L 75,340
+                L 45,310 Z
+              "
+              fill="none"
+              stroke={activeColor}
+              strokeWidth="1.6"
+            />
+
+            {/* Chest Armor Ribs & Panel Lines */}
+            <path d="M 130,225 L 110,270 L 60,265" fill="none" stroke={activeColor} strokeWidth="1.2" opacity="0.75" />
+            <path d="M 190,225 L 210,270 L 260,265" fill="none" stroke={activeColor} strokeWidth="1.2" opacity="0.75" />
+
+            {/* Red Shoulder Socket Circles */}
+            <circle cx="95" cy="260" r="10" fill="none" stroke={redAccent} strokeWidth="1.4" />
+            <circle cx="225" cy="260" r="10" fill="none" stroke={redAccent} strokeWidth="1.4" />
+            <circle cx="95" cy="260" r="4" fill={redAccent} opacity="0.8" />
+            <circle cx="225" cy="260" r="4" fill={redAccent} opacity="0.8" />
+
+            {/* V-shaped Chest Armor Trim Lines */}
+            <path d="M 110,270 L 160,305 L 210,270" fill="none" stroke={redAccent} strokeWidth="1.4" />
+            <path d="M 125,285 L 160,320 L 195,285" fill="none" stroke={activeColor} strokeWidth="1.2" opacity="0.8" />
+
+            {/* ── 6. GLOWING ARC REACTOR CORE (CHEST CENTER) ── */}
+            <g style={{ transform: 'translate(160px, 288px)' }}>
+              {/* Outer Glowing Ring */}
+              <circle
+                r="30"
+                fill="none"
+                stroke={activeColor}
+                strokeWidth="2"
+                style={{ filter: `drop-shadow(0 0 10px ${activeColor})` }}
+              />
+              {/* Outer Ticked Ring */}
+              <circle
+                r="25"
+                fill="none"
+                stroke={activeColor}
+                strokeWidth="1"
+                strokeDasharray="4 3"
+                opacity="0.85"
+              />
+              {/* Middle Solid Ring */}
+              <circle
+                r="18"
+                fill="none"
+                stroke={activeColor}
+                strokeWidth="1.5"
+              />
+              {/* Arc Reactor Vanes (10 Radial Lines) */}
+              {Array.from({ length: 10 }).map((_, i) => {
+                const angle = (i * 360) / 10;
+                return (
+                  <line
+                    key={i}
+                    x1={Math.cos((angle * Math.PI) / 180) * 18}
+                    y1={Math.sin((angle * Math.PI) / 180) * 18}
+                    x2={Math.cos((angle * Math.PI) / 180) * 25}
+                    y2={Math.sin((angle * Math.PI) / 180) * 25}
+                    stroke={activeColor}
+                    strokeWidth="1.5"
+                  />
+                );
+              })}
+              {/* Inner Core Halo */}
+              <circle
+                r="12"
+                fill="url(#arcGlow)"
+                style={{ filter: isTalking ? `drop-shadow(0 0 12px ${activeColor})` : `drop-shadow(0 0 6px ${activeColor})` }}
+              />
+              {/* Core Center Ring */}
+              <circle r="6" fill="none" stroke="#ffffff" strokeWidth="1.5" />
+              <circle r="2.5" fill="#ffffff" />
+            </g>
+
+            {/* ── 7. BACKGROUND HOLOGRAM SCHEMATIC CIRCLES ── */}
+            <g opacity="0.35" style={{ transform: 'translate(45px, 90px)' }}>
+              <circle r="22" fill="none" stroke={activeColor} strokeWidth="0.8" strokeDasharray="3 3" />
+              <circle r="14" fill="none" stroke={activeColor} strokeWidth="0.8" />
+              <line x1="-22" y1="0" x2="22" y2="0" stroke={activeColor} strokeWidth="0.8" />
+              <line x1="0" y1="-22" x2="0" y2="22" stroke={activeColor} strokeWidth="0.8" />
+            </g>
+
+            <g opacity="0.35" style={{ transform: 'translate(275px, 90px)' }}>
+              <circle r="20" fill="none" stroke={activeColor} strokeWidth="0.8" strokeDasharray="4 2" />
+              <circle r="10" fill="none" stroke={activeColor} strokeWidth="0.8" />
+            </g>
+          </svg>
         </div>
-      </div>
-
-      {/* ── Equalizer Waveform Bars ── */}
-      <div className="flex items-end justify-center gap-[3px] h-8 mt-1">
-        {Array.from({ length: 24 }, (_, i) => (
-          <div
-            key={i}
-            style={{
-              width: 3,
-              borderRadius: 2,
-              backgroundColor: activeColorStr,
-              boxShadow: (isTalking || isListening) ? `0 0 8px ${activeColorStr}` : 'none',
-              height: (isTalking || isListening) ? `${8 + Math.sin((i + Date.now() * 0.01) * 0.8) * 18 + 4}px` : '4px',
-              transition: 'height 0.1s ease',
-              opacity: (isTalking || isListening) ? 1 : 0.35,
-            }}
-          />
-        ))}
-      </div>
-
-      {/* ── Subtitle Label ── */}
-      <div
-        style={{
-          fontFamily: 'Orbitron, monospace',
-          fontSize: 8,
-          letterSpacing: '0.3em',
-          color: `${activeColorStr}55`,
-          textTransform: 'uppercase',
-        }}
-      >
-        ◀ STARK INDUSTRIES · AUTONOMOUS AI ▶
       </div>
     </div>
   );
